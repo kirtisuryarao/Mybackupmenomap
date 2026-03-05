@@ -42,7 +42,7 @@ export function Footer() {
           </div>
         </div>
         <div className="mt-8 border-t border-border pt-8 text-center text-sm text-muted-foreground">
-          <p>&copy; 2024 Cycle Companion. All rights reserved.</p>
+          <p>&copy; 2026 Cycle Companion. All rights reserved.</p>
           <p className="mt-2 text-xs">
             This app is for informational purposes and should not replace professional medical advice.
           </p>

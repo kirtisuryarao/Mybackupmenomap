@@ -336,7 +336,7 @@ export default function SettingsPage() {
                 <span className="font-semibold text-foreground">Version:</span> 1.0.0
               </p>
               <p>
-                <span className="font-semibold text-foreground">Last Updated:</span> February 25, 2024
+                <span className="font-semibold text-foreground">Last Updated:</span> February 25, 2026
               </p>
               <p className="pt-2">
                 For support, visit our help center or contact support@cyclecompanion.com
