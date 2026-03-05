@@ -262,7 +262,7 @@ export default function ShopPage() {
 
                   {/* Price */}
                   <div className="text-xl font-bold text-primary mb-4">
-                    ${product.price}
+                    ₹{product.price}
                   </div>
                 </div>
               </CardContent>
