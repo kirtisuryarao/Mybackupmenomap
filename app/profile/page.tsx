@@ -1,0 +1,429 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useProfileData } from '@/hooks/use-profile-data';
+import { LayoutWrapper } from '@/components/layout-wrapper';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Trash2, Plus, AlertCircle, CheckCircle } from 'lucide-react';
+
+export default function ProfilePage() {
+  const { profile, partners, loading, updateProfile, addPartner, deletePartner } =
+    useProfileData();
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    age: '',
+    cycleLength: 28,
+    periodDuration: 5,
+  });
+  const [partnerForm, setPartnerForm] = useState({ name: '', phone: '' });
+  const [isAddingPartner, setIsAddingPartner] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (profile) {
+      setFormData({
+        name: profile.name,
+        email: profile.email,
+        age: profile.age === '' ? '' : String(profile.age),
+        cycleLength: profile.cycleLength === '' ? 28 : Number(profile.cycleLength),
+        periodDuration:
+          profile.periodDuration === '' ? 5 : Number(profile.periodDuration),
+      });
+    }
+  }, [profile]);
+
+  const validateForm = () => {
+    const newErrors: Record<string, string> = {};
+
+    if (!formData.name.trim()) {
+      newErrors.name = 'Name is required';
+    }
+    if (!formData.email.trim()) {
+      newErrors.email = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'Invalid email format';
+    }
+    if (formData.age !== '' && (Number(formData.age) < 1 || Number(formData.age) > 120)) {
+      newErrors.age = 'Age must be between 1 and 120';
+    }
+    if (formData.cycleLength < 21 || formData.cycleLength > 35) {
+      newErrors.cycleLength = 'Cycle length should be between 21 and 35 days';
+    }
+    if (formData.periodDuration < 1 || formData.periodDuration > 10) {
+      newErrors.periodDuration = 'Period duration should be between 1 and 10 days';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const validatePartnerForm = () => {
+    const newErrors: Record<string, string> = {};
+
+    if (!partnerForm.name.trim()) {
+      newErrors.partnerName = 'Partner name is required';
+    }
+    if (!partnerForm.phone.trim()) {
+      newErrors.partnerPhone = 'Phone number is required';
+    } else if (!/^\+?[\d\s\-()]+$/.test(partnerForm.phone)) {
+      newErrors.partnerPhone = 'Invalid phone number format';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: ['cycleLength', 'periodDuration', 'age'].includes(name)
+        ? value === ''
+          ? ''
+          : Number(value)
+        : value,
+    }));
+    // Clear error for this field
+    if (errors[name]) {
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
+  };
+
+  const handleSaveProfile = () => {
+    if (validateForm()) {
+      updateProfile({
+        name: formData.name,
+        email: formData.email,
+        age: formData.age === '' ? '' : Number(formData.age),
+        cycleLength: Number(formData.cycleLength),
+        periodDuration: Number(formData.periodDuration),
+      });
+      setIsEditing(false);
+      setIsSaved(true);
+      setTimeout(() => setIsSaved(false), 3000);
+    }
+  };
+
+  const handleAddPartner = () => {
+    if (validatePartnerForm()) {
+      addPartner(partnerForm.name, partnerForm.phone);
+      setPartnerForm({ name: '', phone: '' });
+      setIsAddingPartner(false);
+      setErrors({});
+    }
+  };
+
+  if (loading) {
+    return (
+      <LayoutWrapper>
+        <div className="flex items-center justify-center min-h-screen">
+          <p className="text-muted-foreground">Loading profile...</p>
+        </div>
+      </LayoutWrapper>
+    );
+  }
+
+  return (
+    <LayoutWrapper>
+      <main className="max-w-4xl mx-auto py-8 px-4">
+        <h1 className="text-3xl font-bold mb-8 text-foreground">My Profile</h1>
+
+        {isSaved && (
+          <div className="mb-6 p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+            <CheckCircle className="w-5 h-5 text-green-600" />
+            <p className="text-green-700">Profile updated successfully!</p>
+          </div>
+        )}
+
+        {/* Personal Information Section */}
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle className="text-primary">Personal & Health Information</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Name */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Name</label>
+                {isEditing ? (
+                  <Input
+                    name="name"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    className={errors.name ? 'border-red-500' : ''}
+                  />
+                ) : (
+                  <p className="text-foreground py-2">{profile?.name || 'Not set'}</p>
+                )}
+                {errors.name && (
+                  <p className="text-red-500 text-sm flex items-center gap-1">
+                    <AlertCircle className="w-4 h-4" />
+                    {errors.name}
+                  </p>
+                )}
+              </div>
+
+              {/* Email */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Email</label>
+                {isEditing ? (
+                  <Input
+                    name="email"
+                    type="email"
+                    value={formData.email}
+                    onChange={handleInputChange}
+                    className={errors.email ? 'border-red-500' : ''}
+                  />
+                ) : (
+                  <p className="text-foreground py-2">{profile?.email || 'Not set'}</p>
+                )}
+                {errors.email && (
+                  <p className="text-red-500 text-sm flex items-center gap-1">
+                    <AlertCircle className="w-4 h-4" />
+                    {errors.email}
+                  </p>
+                )}
+              </div>
+
+              {/* Age */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Age</label>
+                {isEditing ? (
+                  <Input
+                    name="age"
+                    type="number"
+                    value={formData.age}
+                    onChange={handleInputChange}
+                    className={errors.age ? 'border-red-500' : ''}
+                  />
+                ) : (
+                  <p className="text-foreground py-2">{profile?.age || 'Not set'}</p>
+                )}
+                {errors.age && (
+                  <p className="text-red-500 text-sm flex items-center gap-1">
+                    <AlertCircle className="w-4 h-4" />
+                    {errors.age}
+                  </p>
+                )}
+              </div>
+
+              {/* Cycle Length */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Cycle Length (days)
+                </label>
+                {isEditing ? (
+                  <Input
+                    name="cycleLength"
+                    type="number"
+                    value={formData.cycleLength}
+                    onChange={handleInputChange}
+                    className={errors.cycleLength ? 'border-red-500' : ''}
+                  />
+                ) : (
+                  <p className="text-foreground py-2">
+                    {profile?.cycleLength || 28} days
+                  </p>
+                )}
+                {errors.cycleLength && (
+                  <p className="text-red-500 text-sm flex items-center gap-1">
+                    <AlertCircle className="w-4 h-4" />
+                    {errors.cycleLength}
+                  </p>
+                )}
+              </div>
+
+              {/* Period Duration */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">
+                  Period Duration (days)
+                </label>
+                {isEditing ? (
+                  <Input
+                    name="periodDuration"
+                    type="number"
+                    value={formData.periodDuration}
+                    onChange={handleInputChange}
+                    className={errors.periodDuration ? 'border-red-500' : ''}
+                  />
+                ) : (
+                  <p className="text-foreground py-2">
+                    {profile?.periodDuration || 5} days
+                  </p>
+                )}
+                {errors.periodDuration && (
+                  <p className="text-red-500 text-sm flex items-center gap-1">
+                    <AlertCircle className="w-4 h-4" />
+                    {errors.periodDuration}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="pt-4 flex gap-2">
+              {!isEditing ? (
+                <Button onClick={() => setIsEditing(true)} className="bg-primary">
+                  Edit Profile
+                </Button>
+              ) : (
+                <>
+                  <Button onClick={handleSaveProfile} className="bg-primary">
+                    Save Changes
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setIsEditing(false);
+                      setErrors({});
+                    }}
+                    variant="outline"
+                  >
+                    Cancel
+                  </Button>
+                </>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Partner Management Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-primary">Partner Management</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Partners List */}
+            {partners.length > 0 && (
+              <div>
+                <h3 className="text-sm font-semibold text-foreground mb-4">
+                  Your Partners
+                </h3>
+                <div className="space-y-3">
+                  {partners.map((partner) => (
+                    <div
+                      key={partner.id}
+                      className="flex items-center justify-between p-4 bg-card border border-border rounded-lg"
+                    >
+                      <div>
+                        <p className="font-medium text-foreground">{partner.name}</p>
+                        <p className="text-sm text-muted-foreground">{partner.phone}</p>
+                      </div>
+                      <Button
+                        onClick={() => deletePartner(partner.id)}
+                        variant="destructive"
+                        size="sm"
+                        className="flex items-center gap-1"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Delete
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {partners.length === 0 && !isAddingPartner && (
+              <p className="text-muted-foreground text-sm">
+                No partners added yet. Add a partner to share your cycle information.
+              </p>
+            )}
+
+            {/* Add Partner Form */}
+            {!isAddingPartner ? (
+              <Button
+                onClick={() => setIsAddingPartner(true)}
+                className="bg-primary flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" />
+                Add Partner
+              </Button>
+            ) : (
+              <div className="p-4 bg-secondary rounded-lg space-y-4">
+                <h3 className="font-semibold text-foreground">Add New Partner</h3>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">
+                    Partner Name
+                  </label>
+                  <Input
+                    placeholder="Enter partner's name"
+                    value={partnerForm.name}
+                    onChange={(e) => {
+                      setPartnerForm((prev) => ({ ...prev, name: e.target.value }));
+                      if (errors.partnerName) {
+                        setErrors((prev) => {
+                          const newErrors = { ...prev };
+                          delete newErrors.partnerName;
+                          return newErrors;
+                        });
+                      }
+                    }}
+                    className={errors.partnerName ? 'border-red-500' : ''}
+                  />
+                  {errors.partnerName && (
+                    <p className="text-red-500 text-sm flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {errors.partnerName}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">
+                    Phone Number
+                  </label>
+                  <Input
+                    placeholder="Enter partner's phone number"
+                    value={partnerForm.phone}
+                    onChange={(e) => {
+                      setPartnerForm((prev) => ({ ...prev, phone: e.target.value }));
+                      if (errors.partnerPhone) {
+                        setErrors((prev) => {
+                          const newErrors = { ...prev };
+                          delete newErrors.partnerPhone;
+                          return newErrors;
+                        });
+                      }
+                    }}
+                    className={errors.partnerPhone ? 'border-red-500' : ''}
+                  />
+                  {errors.partnerPhone && (
+                    <p className="text-red-500 text-sm flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {errors.partnerPhone}
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <Button onClick={handleAddPartner} className="bg-primary">
+                    Save Partner
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      setIsAddingPartner(false);
+                      setPartnerForm({ name: '', phone: '' });
+                      setErrors({});
+                    }}
+                    variant="outline"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </main>
+    </LayoutWrapper>
+  );
+}
