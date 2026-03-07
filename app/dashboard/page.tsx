@@ -1,3 +1,4 @@
+
 import { LayoutWrapper } from '@/components/layout-wrapper'
 import { CycleCalendar } from '@/components/cycle-calendar'
 import { DailyInsightCard } from '@/components/daily-insight-card'
