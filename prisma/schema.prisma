@@ -1,14 +1,132 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
-  provider = "prisma-client"
-  output   = "../lib/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+// User model - Core user account information
+model User {
+  id             String   @id @default(cuid())
+  email          String   @unique
+  passwordHash   String   @map("password_hash")
+  name           String
+  age            Int?
+  cycleLength    Int      @default(28) @map("cycle_length")
+  periodDuration Int      @default(5) @map("period_duration")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  partners            Partner[]
+  cycleEntries        CycleEntry[]
+  notificationSettings NotificationSettings?
+  privacySettings     PrivacySettings?
+  chatMessages        ChatMessage[]
+  refreshTokens       RefreshToken[]
+
+  @@map("users")
+}
+
+// Partner model - Partner information for sharing cycle data
+model Partner {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  name      String
+  phone     String
+  addedDate DateTime @default(now()) @map("added_date")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("partners")
+}
+
+// CycleEntry model - Historical cycle tracking data
+model CycleEntry {
+  id             String   @id @default(cuid())
+  userId         String   @map("user_id")
+  lastPeriodDate DateTime @map("last_period_date")
+  cycleLength    Int      @map("cycle_length")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([lastPeriodDate])
+  @@map("cycle_entries")
+}
+
+// NotificationSettings model - User notification preferences
+model NotificationSettings {
+  id                String   @id @default(cuid())
+  userId             String   @unique @map("user_id")
+  periodReminder     Boolean  @default(true) @map("period_reminder")
+  phaseChange        Boolean  @default(true) @map("phase_change")
+  pushNotifications  Boolean  @default(false) @map("push_notifications")
+  emailNotifications Boolean  @default(false) @map("email_notifications")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_settings")
+}
+
+// PrivacySettings model - User privacy preferences
+model PrivacySettings {
+  id                String   @id @default(cuid())
+  userId             String   @unique @map("user_id")
+  profilePublic      Boolean  @default(false) @map("profile_public")
+  shareWithPartner   Boolean  @default(false) @map("share_with_partner")
+  allowHealthInsight Boolean  @default(true) @map("allow_health_insight")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("privacy_settings")
+}
+
+// ChatMessage model - AI chatbot conversation history
+model ChatMessage {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  role      String   // 'user' or 'assistant'
+  content   String   @db.Text
+  timestamp DateTime @default(now())
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([timestamp])
+  @@map("chat_messages")
+}
+
+// RefreshToken model - For JWT refresh token rotation
+model RefreshToken {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  token     String   @unique
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("refresh_tokens")
 }

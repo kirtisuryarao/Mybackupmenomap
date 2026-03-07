@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Heart, AlertCircle } from 'lucide-react'
 import { formatDate } from '@/lib/cycle-calculations'
+import { signup } from '@/lib/auth-client'
 
 export function SignupForm() {
   const [formData, setFormData] = useState({
@@ -71,33 +72,23 @@ export function SignupForm() {
       const cycleLength = parseInt(formData.cycleLength)
       if (cycleLength < 20 || cycleLength > 40) {
         setError('Cycle length should be between 20 and 40 days')
+        setIsLoading(false)
         return
       }
 
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      // Store user data and cycle data
-      const userData = {
+      await signup({
         name: formData.name,
         email: formData.email,
+        password: formData.password,
         lastPeriodDate: formData.lastPeriodDate,
         cycleLength: cycleLength,
-        partnerPhone: formData.partnerPhone || null,
-        loggedIn: true,
-      }
-
-      localStorage.setItem('user_session', JSON.stringify(userData))
-      localStorage.setItem('cycle_companion_data', JSON.stringify({
-        lastPeriodDate: formData.lastPeriodDate,
-        cycleLength: cycleLength,
-      }))
+        partnerPhone: formData.partnerPhone || undefined,
+      })
 
       // Redirect to dashboard
       window.location.href = '/dashboard'
-    } catch (err) {
-      setError('An error occurred. Please try again.')
-    } finally {
+    } catch (err: any) {
+      setError(err.message || 'An error occurred. Please try again.')
       setIsLoading(false)
     }
   }

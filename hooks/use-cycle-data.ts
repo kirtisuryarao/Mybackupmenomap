@@ -2,8 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { CycleData, getDayInfo, formatDate, parseDate, DayInfo } from '@/lib/cycle-calculations'
+import { authenticatedFetch } from '@/lib/auth-client'
 
-const CYCLE_STORAGE_KEY = 'cycle_companion_data'
 const DEFAULT_CYCLE_LENGTH = 28
 
 interface UseCycleDataReturn {
@@ -18,53 +18,85 @@ export function useCycleData(): UseCycleDataReturn {
   const [cycleData, setCycleDataState] = useState<CycleData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  // Load from localStorage on mount
+  // Load from API on mount
   useEffect(() => {
-    const stored = localStorage.getItem(CYCLE_STORAGE_KEY)
-    if (stored) {
+    async function loadCycleData() {
       try {
-        const data = JSON.parse(stored)
-        setCycleDataState(data)
-      } catch (e) {
-        console.error('Failed to parse cycle data:', e)
-        // Initialize with a default cycle (28 days ago as last period)
+        const response = await authenticatedFetch('/api/cycle')
+        if (response.ok) {
+          const data = await response.json()
+          setCycleDataState({
+            lastPeriodDate: data.lastPeriodDate,
+            cycleLength: data.cycleLength,
+          })
+        } else {
+          // Fallback to default if not authenticated or error
+          const defaultLastPeriod = new Date()
+          defaultLastPeriod.setDate(defaultLastPeriod.getDate() - 14)
+          setCycleDataState({
+            lastPeriodDate: formatDate(defaultLastPeriod),
+            cycleLength: DEFAULT_CYCLE_LENGTH,
+          })
+        }
+      } catch (error) {
+        console.error('Failed to load cycle data:', error)
+        // Fallback to default
         const defaultLastPeriod = new Date()
         defaultLastPeriod.setDate(defaultLastPeriod.getDate() - 14)
-        const defaultData: CycleData = {
+        setCycleDataState({
           lastPeriodDate: formatDate(defaultLastPeriod),
           cycleLength: DEFAULT_CYCLE_LENGTH,
-        }
-        setCycleDataState(defaultData)
-        localStorage.setItem(CYCLE_STORAGE_KEY, JSON.stringify(defaultData))
+        })
+      } finally {
+        setIsLoading(false)
       }
-    } else {
-      // Initialize with default cycle
-      const defaultLastPeriod = new Date()
-      defaultLastPeriod.setDate(defaultLastPeriod.getDate() - 14)
-      const defaultData: CycleData = {
-        lastPeriodDate: formatDate(defaultLastPeriod),
-        cycleLength: DEFAULT_CYCLE_LENGTH,
-      }
-      setCycleDataState(defaultData)
-      localStorage.setItem(CYCLE_STORAGE_KEY, JSON.stringify(defaultData))
     }
-    setIsLoading(false)
+
+    loadCycleData()
   }, [])
 
-  const setCycleData = useCallback((data: CycleData) => {
+  const setCycleData = useCallback(async (data: CycleData) => {
     setCycleDataState(data)
-    localStorage.setItem(CYCLE_STORAGE_KEY, JSON.stringify(data))
+    try {
+      await authenticatedFetch('/api/cycle', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          lastPeriodDate: data.lastPeriodDate,
+          cycleLength: data.cycleLength,
+        }),
+      })
+    } catch (error) {
+      console.error('Failed to save cycle data:', error)
+    }
   }, [])
 
   const updateCycleData = useCallback(
-    (lastPeriodDate: string, cycleLength: number) => {
+    async (lastPeriodDate: string, cycleLength: number) => {
       const newData: CycleData = {
         lastPeriodDate,
         cycleLength,
       }
-      setCycleData(newData)
+      setCycleDataState(newData)
+      try {
+        await authenticatedFetch('/api/cycle', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            lastPeriodDate,
+            cycleLength,
+          }),
+        })
+      } catch (error) {
+        console.error('Failed to update cycle data:', error)
+        throw error
+      }
     },
-    [setCycleData]
+    []
   )
 
   // Calculate today's info

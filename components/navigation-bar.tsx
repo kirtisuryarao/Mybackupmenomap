@@ -4,11 +4,23 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Heart, Calendar, Lightbulb, MessageSquare, Users, Settings, ShoppingBag, LogOut, User } from 'lucide-react'
+import { logout } from '@/lib/auth-client'
 
 export function NavigationBar() {
   const pathname = usePathname()
 
   const isActive = (path: string) => pathname === path
+
+  const handleLogout = async () => {
+    try {
+      await logout()
+      window.location.href = '/auth/login'
+    } catch (error) {
+      console.error('Logout error:', error)
+      // Still redirect even if API call fails
+      window.location.href = '/auth/login'
+    }
+  }
 
   const navItems = [
     { href: '/dashboard', label: 'Dashboard', icon: Calendar },
@@ -76,7 +88,12 @@ export function NavigationBar() {
           </div>
 
           {/* Logout Button */}
-          <Button variant="outline" size="sm" className="gap-2 hidden sm:flex">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="gap-2 hidden sm:flex"
+            onClick={handleLogout}
+          >
             <LogOut className="h-4 w-4" />
             <span className="hidden sm:inline">Logout</span>
           </Button>

@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Heart } from 'lucide-react'
+import { login } from '@/lib/auth-client'
 
 export function LoginForm() {
   const [email, setEmail] = useState('')
@@ -19,29 +20,25 @@ export function LoginForm() {
     setError('')
     setIsLoading(true)
 
-    // Simulate login (in production, this would call an API)
     try {
       if (!email || !password) {
         setError('Please fill in all fields')
+        setIsLoading(false)
         return
       }
 
       if (!email.includes('@')) {
         setError('Please enter a valid email')
+        setIsLoading(false)
         return
       }
 
-      // Simulate API delay
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      await login(email, password)
 
-      // Store a mock user session
-      localStorage.setItem('user_session', JSON.stringify({ email, loggedIn: true }))
-      
       // Redirect to dashboard
       window.location.href = '/dashboard'
-    } catch (err) {
-      setError('An error occurred. Please try again.')
-    } finally {
+    } catch (err: any) {
+      setError(err.message || 'An error occurred. Please try again.')
       setIsLoading(false)
     }
   }

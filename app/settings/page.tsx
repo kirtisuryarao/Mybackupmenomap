@@ -10,6 +10,7 @@ import { Switch } from '@/components/ui/switch'
 import { useCycleData } from '@/hooks/use-cycle-data'
 import { formatDate, parseDate } from '@/lib/cycle-calculations'
 import { Settings, Bell, Eye, Lock, LogOut } from 'lucide-react'
+import { logout } from '@/lib/auth-client'
 
 export default function SettingsPage() {
   const { cycleData, updateCycleData, isLoading } = useCycleData()
@@ -60,10 +61,15 @@ export default function SettingsPage() {
     setPrivacy((prev) => ({ ...prev, [key]: !prev[key] }))
   }
 
-  const handleLogout = () => {
-    localStorage.removeItem('user_session')
-    localStorage.removeItem('cycle_companion_data')
-    window.location.href = '/auth/login'
+  const handleLogout = async () => {
+    try {
+      await logout()
+      window.location.href = '/auth/login'
+    } catch (error) {
+      console.error('Logout error:', error)
+      // Still redirect even if API call fails
+      window.location.href = '/auth/login'
+    }
   }
 
   if (isLoading || !cycleData) {

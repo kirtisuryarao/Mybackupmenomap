@@ -1,0 +1,106 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { prisma } from '@/lib/prisma'
+import { authenticateRequest } from '@/lib/middleware'
+import { z } from 'zod'
+
+const updateProfileSchema = z.object({
+  name: z.string().min(1).optional(),
+  email: z.string().email().optional(),
+  age: z.number().int().min(1).max(120).optional().nullable(),
+  cycleLength: z.number().int().min(20).max(40).optional(),
+  periodDuration: z.number().int().min(1).max(10).optional(),
+})
+
+export async function GET(request: NextRequest) {
+  try {
+    const authResult = await authenticateRequest(request)
+    if ('error' in authResult) {
+      return authResult.error
+    }
+
+    const { user } = authResult
+
+    const userData = await prisma.user.findUnique({
+      where: { id: user.userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        age: true,
+        cycleLength: true,
+        periodDuration: true,
+        partners: {
+          select: {
+            id: true,
+            name: true,
+            phone: true,
+            addedDate: true,
+          },
+        },
+      },
+    })
+
+    if (!userData) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      )
+    }
+
+    return NextResponse.json(userData)
+  } catch (error) {
+    console.error('Get profile error:', error)
+    return NextResponse.json(
+      { error: 'Failed to get profile' },
+      { status: 500 }
+    )
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const authResult = await authenticateRequest(request)
+    if ('error' in authResult) {
+      return authResult.error
+    }
+
+    const { user } = authResult
+    const body = await request.json()
+    
+    const validatedData = updateProfileSchema.parse(body)
+
+    const updatedUser = await prisma.user.update({
+      where: { id: user.userId },
+      data: {
+        ...(validatedData.name && { name: validatedData.name }),
+        ...(validatedData.email && { email: validatedData.email }),
+        ...(validatedData.age !== undefined && { age: validatedData.age }),
+        ...(validatedData.cycleLength && { cycleLength: validatedData.cycleLength }),
+        ...(validatedData.periodDuration && { periodDuration: validatedData.periodDuration }),
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        age: true,
+        cycleLength: true,
+        periodDuration: true,
+      },
+    })
+
+    return NextResponse.json(updatedUser)
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { error: 'Validation error', details: error.errors },
+        { status: 400 }
+      )
+    }
+
+    console.error('Update profile error:', error)
+    return NextResponse.json(
+      { error: 'Failed to update profile' },
+      { status: 500 }
+    )
+  }
+}
