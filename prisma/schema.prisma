@@ -20,7 +20,7 @@ model User {
   periodDuration Int      @default(5) @map("period_duration")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
-
+  
   // Relations
   partners            Partner[]
   cycleEntries        CycleEntry[]
