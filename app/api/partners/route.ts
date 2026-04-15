@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateRequest } from '@/lib/middleware'
+import { createInternalErrorResponse } from '@/lib/api-error'
 import { z } from 'zod'
 
 const addPartnerSchema = z.object({
@@ -24,11 +25,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(partners)
   } catch (error) {
-    console.error('Get partners error:', error)
-    return NextResponse.json(
-      { error: 'Failed to get partners' },
-      { status: 500 }
-    )
+    return createInternalErrorResponse(error, 'Get partners error', 'Failed to get partners')
   }
 }
 
@@ -61,10 +58,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.error('Add partner error:', error)
-    return NextResponse.json(
-      { error: 'Failed to add partner' },
-      { status: 500 }
-    )
+    return createInternalErrorResponse(error, 'Add partner error', 'Failed to add partner')
   }
 }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateRequest } from '@/lib/middleware'
+import { createInternalErrorResponse } from '@/lib/api-error'
 import { z } from 'zod'
 
 const updateCycleSchema = z.object({
@@ -41,11 +42,7 @@ export async function GET(request: NextRequest) {
       cycleLength: cycleEntry.cycleLength,
     })
   } catch (error) {
-    console.error('Get cycle error:', error)
-    return NextResponse.json(
-      { error: 'Failed to get cycle data' },
-      { status: 500 }
-    )
+    return createInternalErrorResponse(error, 'Get cycle error', 'Failed to get cycle data')
   }
 }
 
@@ -88,10 +85,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.error('Update cycle error:', error)
-    return NextResponse.json(
-      { error: 'Failed to update cycle data' },
-      { status: 500 }
-    )
+    return createInternalErrorResponse(error, 'Update cycle error', 'Failed to update cycle data')
   }
 }

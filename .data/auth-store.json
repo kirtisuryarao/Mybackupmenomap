@@ -1,0 +1,82 @@
+{
+  "users": [
+    {
+      "id": "cbf0e14a-19b0-4c50-a613-b9e88eb83d6d",
+      "email": "fallback.1bc1ec56@example.com",
+      "passwordHash": "$2a$12$cPLlWP71b56ZvT8ojL9aduwRy.SAKbftxohnAE1W8tBv6yoZEgBsu",
+      "name": "Fallback Test",
+      "age": null,
+      "cycleLength": 28,
+      "periodDuration": 5,
+      "createdAt": "2026-04-14T16:42:12.295Z",
+      "updatedAt": "2026-04-14T16:42:12.295Z",
+      "lastPeriodDate": "2026-04-01",
+      "partners": [],
+      "notificationSettings": {
+        "periodReminder": true,
+        "phaseChange": true,
+        "pushNotifications": false,
+        "emailNotifications": false
+      },
+      "privacySettings": {
+        "profilePublic": false,
+        "shareWithPartner": false,
+        "allowHealthInsight": true
+      }
+    },
+    {
+      "id": "774e9fd0-1249-4856-a0e6-24cc94f626c0",
+      "email": "kirtim.suryarao@gmail.com",
+      "passwordHash": "$2a$12$Q/ChInXTFJsBQRgvFAT0EuwOW3ws0f.LFS5G/p8I585SRJPedO6DW",
+      "name": "Kirti Milind Suryarao",
+      "age": null,
+      "cycleLength": 28,
+      "periodDuration": 5,
+      "createdAt": "2026-04-14T16:54:10.799Z",
+      "updatedAt": "2026-04-14T16:54:10.799Z",
+      "lastPeriodDate": "2026-04-01",
+      "partners": [],
+      "notificationSettings": {
+        "periodReminder": true,
+        "phaseChange": true,
+        "pushNotifications": false,
+        "emailNotifications": false
+      },
+      "privacySettings": {
+        "profilePublic": false,
+        "shareWithPartner": false,
+        "allowHealthInsight": true
+      }
+    }
+  ],
+  "refreshTokens": [
+    {
+      "id": "80b17635-5e3b-4873-8975-1f63122314d1",
+      "userId": "cbf0e14a-19b0-4c50-a613-b9e88eb83d6d",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJjYmYwZTE0YS0xOWIwLTRjNTAtYTYxMy1iOWU4OGViODNkNmQiLCJlbWFpbCI6ImZhbGxiYWNrLjFiYzFlYzU2QGV4YW1wbGUuY29tIiwiaWF0IjoxNzc2MTg0OTMyLCJleHAiOjE3NzY3ODk3MzJ9.jVKvdwRINRT3cBkniyA9748ea_ytb6vDkVk4WDuhJXc",
+      "expiresAt": "2026-04-21T16:42:12.305Z",
+      "createdAt": "2026-04-14T16:42:12.306Z"
+    },
+    {
+      "id": "48f076f5-5710-4042-bf7f-e6848cea3d0d",
+      "userId": "cbf0e14a-19b0-4c50-a613-b9e88eb83d6d",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiJjYmYwZTE0YS0xOWIwLTRjNTAtYTYxMy1iOWU4OGViODNkNmQiLCJlbWFpbCI6ImZhbGxiYWNrLjFiYzFlYzU2QGV4YW1wbGUuY29tIiwiaWF0IjoxNzc2MTg0OTcwLCJleHAiOjE3NzY3ODk3NzB9.SN0qQCJvZeyY00UKZ9AbDH4J7V9icswrDa0IshdDbZA",
+      "expiresAt": "2026-04-21T16:42:50.593Z",
+      "createdAt": "2026-04-14T16:42:50.595Z"
+    },
+    {
+      "id": "b753ad60-dc4d-4eb2-8746-b3099fc56a04",
+      "userId": "774e9fd0-1249-4856-a0e6-24cc94f626c0",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI3NzRlOWZkMC0xMjQ5LTQ4NTYtYTBlNi0yNGNjOTRmNjI2YzAiLCJlbWFpbCI6ImtpcnRpbS5zdXJ5YXJhb0BnbWFpbC5jb20iLCJpYXQiOjE3NzYxODgyMTgsImV4cCI6MTc3Njc5MzAxOH0.SZAFSy6ZJ14NZ3cR_d-tJCw7Row5BUpUjrF02CaZG-8",
+      "expiresAt": "2026-04-21T17:36:58.977Z",
+      "createdAt": "2026-04-14T17:36:58.978Z"
+    },
+    {
+      "id": "b231766b-499d-467a-b7b6-0ffe2828b950",
+      "userId": "774e9fd0-1249-4856-a0e6-24cc94f626c0",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI3NzRlOWZkMC0xMjQ5LTQ4NTYtYTBlNi0yNGNjOTRmNjI2YzAiLCJlbWFpbCI6ImtpcnRpbS5zdXJ5YXJhb0BnbWFpbC5jb20iLCJpYXQiOjE3NzYyNjM5NzQsImV4cCI6MTc3Njg2ODc3NH0.qBYlcaYioBcsJiyz2-6SaRh2xMrJQ8WpntIKvuxIeB8",
+      "expiresAt": "2026-04-22T14:39:34.218Z",
+      "createdAt": "2026-04-15T14:39:34.221Z"
+    }
+  ]
+}

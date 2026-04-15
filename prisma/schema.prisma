@@ -24,6 +24,9 @@ model User {
   // Relations
   partners            Partner[]
   cycleEntries        CycleEntry[]
+  dailyLogs           DailyLog[]
+  cycles              Cycle[]
+  predictions         Prediction[]
   notificationSettings NotificationSettings?
   privacySettings     PrivacySettings?
   chatMessages        ChatMessage[]
@@ -129,4 +132,66 @@ model RefreshToken {
   @@index([userId])
   @@index([token])
   @@map("refresh_tokens")
+}
+
+// DailyLog model - User daily tracking data (period, mood, symptoms, temperature)
+model DailyLog {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  date        DateTime @db.Date
+  flow        String?  // 'light', 'medium', 'heavy', 'super_heavy'
+  spotting    String?  // 'red', 'brown'
+  mood        String[] // array: ['happy', 'sad', 'anxious', etc.]
+  symptoms    String[] // array: ['cramps', 'headache', 'fatigue', etc.]
+  temperature Float?   // basal body temperature
+  sleepQuality String? @map("sleep_quality") // 'good', 'fair', 'poor'
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId])
+  @@index([date])
+  @@map("daily_logs")
+}
+
+// Cycle model - Detected cycle history (start/end dates, computed length)
+model Cycle {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  startDate DateTime  @map("start_date") @db.Date
+  endDate   DateTime? @map("end_date") @db.Date
+  length    Int?      // calculated cycle length in days
+  periodLength Int?   @map("period_length") // days of bleeding
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([startDate])
+  @@map("cycles")
+}
+
+// Prediction model - Predicted dates for next period, ovulation, fertile window
+model Prediction {
+  id                   String   @id @default(cuid())
+  userId               String   @map("user_id")
+  predictedPeriodDate  DateTime @map("predicted_period_date") @db.Date
+  ovulationDate        DateTime @map("ovulation_date") @db.Date
+  fertileWindowStart   DateTime @map("fertile_window_start") @db.Date
+  fertileWindowEnd     DateTime @map("fertile_window_end") @db.Date
+  confidence           Float    @default(0.5) // 0-1 confidence score
+  method               String   @default("rule_based") // 'rule_based' or 'ml'
+  createdAt            DateTime @default(now()) @map("created_at")
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("predictions")
 }

@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { hashPassword, generateTokenPair } from '@/lib/auth'
+import { createInternalErrorResponse } from '@/lib/api-error'
+import { canUseFileAuthFallback, isPrismaConnectionError } from '@/lib/db-fallback'
+import {
+  createFileRefreshToken,
+  createFileUser,
+  findFileUserByEmail,
+} from '@/lib/file-auth-store'
 import { z } from 'zod'
 
 const signupSchema = z.object({
@@ -22,97 +29,146 @@ export async function POST(request: NextRequest) {
       cycleLength: parseInt(body.cycleLength),
     })
 
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email: validatedData.email },
-    })
+    try {
+      // Check if user already exists
+      const existingUser = await prisma.user.findUnique({
+        where: { email: validatedData.email },
+      })
 
-    if (existingUser) {
-      return NextResponse.json(
-        { error: 'User with this email already exists' },
-        { status: 400 }
-      )
-    }
+      if (existingUser) {
+        return NextResponse.json(
+          { error: 'User with this email already exists' },
+          { status: 400 }
+        )
+      }
 
-    // Hash password
-    const passwordHash = await hashPassword(validatedData.password)
+      // Hash password
+      const passwordHash = await hashPassword(validatedData.password)
 
-    // Create user and related data in a transaction
-    const result = await prisma.$transaction(async (tx) => {
-      // Create user
-      const user = await tx.user.create({
+      // Create user and related data in a transaction
+      const result = await prisma.$transaction(async (tx) => {
+        // Create user
+        const user = await tx.user.create({
+          data: {
+            email: validatedData.email,
+            passwordHash,
+            name: validatedData.name,
+            cycleLength: validatedData.cycleLength,
+          },
+        })
+
+        // Create initial cycle entry
+        await tx.cycleEntry.create({
+          data: {
+            userId: user.id,
+            lastPeriodDate: new Date(validatedData.lastPeriodDate),
+            cycleLength: validatedData.cycleLength,
+          },
+        })
+
+        // Create default notification settings
+        await tx.notificationSettings.create({
+          data: {
+            userId: user.id,
+          },
+        })
+
+        // Create default privacy settings
+        await tx.privacySettings.create({
+          data: {
+            userId: user.id,
+          },
+        })
+
+        // Create partner if phone provided
+        if (validatedData.partnerPhone) {
+          await tx.partner.create({
+            data: {
+              userId: user.id,
+              name: 'Partner',
+              phone: validatedData.partnerPhone,
+            },
+          })
+        }
+
+        return user
+      })
+
+      // Generate tokens
+      const tokens = generateTokenPair({
+        userId: result.id,
+        email: result.email,
+      })
+
+      // Store refresh token in database
+      await prisma.refreshToken.create({
         data: {
+          userId: result.id,
+          token: tokens.refreshToken,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        },
+      })
+
+      return NextResponse.json(
+        {
+          user: {
+            id: result.id,
+            email: result.email,
+            name: result.name,
+            cycleLength: result.cycleLength,
+          },
+          ...tokens,
+        },
+        { status: 201 }
+      )
+    } catch (error) {
+      if (isPrismaConnectionError(error) && canUseFileAuthFallback()) {
+        const existingUser = await findFileUserByEmail(validatedData.email)
+
+        if (existingUser) {
+          return NextResponse.json(
+            { error: 'User with this email already exists' },
+            { status: 400 }
+          )
+        }
+
+        const passwordHash = await hashPassword(validatedData.password)
+        const result = await createFileUser({
           email: validatedData.email,
           passwordHash,
           name: validatedData.name,
           cycleLength: validatedData.cycleLength,
-        },
-      })
-
-      // Create initial cycle entry
-      await tx.cycleEntry.create({
-        data: {
-          userId: user.id,
-          lastPeriodDate: new Date(validatedData.lastPeriodDate),
-          cycleLength: validatedData.cycleLength,
-        },
-      })
-
-      // Create default notification settings
-      await tx.notificationSettings.create({
-        data: {
-          userId: user.id,
-        },
-      })
-
-      // Create default privacy settings
-      await tx.privacySettings.create({
-        data: {
-          userId: user.id,
-        },
-      })
-
-      // Create partner if phone provided
-      if (validatedData.partnerPhone) {
-        await tx.partner.create({
-          data: {
-            userId: user.id,
-            name: 'Partner', // Default name, can be updated later
-            phone: validatedData.partnerPhone,
-          },
+          lastPeriodDate: validatedData.lastPeriodDate,
+          partnerPhone: validatedData.partnerPhone,
         })
+
+        const tokens = generateTokenPair({
+          userId: result.id,
+          email: result.email,
+        })
+
+        await createFileRefreshToken({
+          userId: result.id,
+          token: tokens.refreshToken,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        })
+
+        return NextResponse.json(
+          {
+            user: {
+              id: result.id,
+              email: result.email,
+              name: result.name,
+              cycleLength: result.cycleLength,
+            },
+            ...tokens,
+          },
+          { status: 201 }
+        )
       }
 
-      return user
-    })
-
-    // Generate tokens
-    const tokens = generateTokenPair({
-      userId: result.id,
-      email: result.email,
-    })
-
-    // Store refresh token in database
-    await prisma.refreshToken.create({
-      data: {
-        userId: result.id,
-        token: tokens.refreshToken,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-      },
-    })
-
-    return NextResponse.json(
-      {
-        user: {
-          id: result.id,
-          email: result.email,
-          name: result.name,
-          cycleLength: result.cycleLength,
-        },
-        ...tokens,
-      },
-      { status: 201 }
-    )
+      throw error
+    }
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -121,10 +177,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.error('Signup error:', error)
-    return NextResponse.json(
-      { error: 'Failed to create account' },
-      { status: 500 }
-    )
+    return createInternalErrorResponse(error, 'Signup error', 'Failed to create account')
   }
 }

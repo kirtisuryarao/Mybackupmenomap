@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { verifyRefreshToken, generateTokenPair } from '@/lib/auth'
+import { createInternalErrorResponse } from '@/lib/api-error'
+import { canUseFileAuthFallback, isPrismaConnectionError } from '@/lib/db-fallback'
+import {
+  createFileRefreshToken,
+  deleteFileRefreshTokenById,
+  findFileRefreshToken,
+} from '@/lib/file-auth-store'
 import { z } from 'zod'
 
 const refreshSchema = z.object({
@@ -25,57 +32,98 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if refresh token exists in database
-    const storedToken = await prisma.refreshToken.findUnique({
-      where: { token: validatedData.refreshToken },
-      include: { user: true },
-    })
+    try {
+      // Check if refresh token exists in database
+      const storedToken = await prisma.refreshToken.findUnique({
+        where: { token: validatedData.refreshToken },
+        include: { user: true },
+      })
 
-    if (!storedToken || storedToken.expiresAt < new Date()) {
-      // Clean up expired token
-      if (storedToken) {
+      if (!storedToken || storedToken.expiresAt < new Date()) {
+        // Clean up expired token
+        if (storedToken) {
+          await prisma.refreshToken.delete({
+            where: { id: storedToken.id },
+          })
+        }
+        return NextResponse.json(
+          { error: 'Invalid or expired refresh token' },
+          { status: 401 }
+        )
+      }
+
+      // Verify user still exists
+      if (!storedToken.user) {
         await prisma.refreshToken.delete({
           where: { id: storedToken.id },
         })
+        return NextResponse.json(
+          { error: 'User not found' },
+          { status: 401 }
+        )
       }
-      return NextResponse.json(
-        { error: 'Invalid or expired refresh token' },
-        { status: 401 }
-      )
-    }
 
-    // Verify user still exists
-    if (!storedToken.user) {
+      // Generate new token pair
+      const tokens = generateTokenPair({
+        userId: storedToken.user.id,
+        email: storedToken.user.email,
+      })
+
+      // Delete old refresh token
       await prisma.refreshToken.delete({
         where: { id: storedToken.id },
       })
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 401 }
-      )
+
+      // Store new refresh token
+      await prisma.refreshToken.create({
+        data: {
+          userId: storedToken.user.id,
+          token: tokens.refreshToken,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        },
+      })
+
+      return NextResponse.json(tokens)
+    } catch (error) {
+      if (isPrismaConnectionError(error) && canUseFileAuthFallback()) {
+        const storedToken = await findFileRefreshToken(validatedData.refreshToken)
+
+        if (!storedToken || new Date(storedToken.expiresAt) < new Date()) {
+          if (storedToken) {
+            await deleteFileRefreshTokenById(storedToken.id)
+          }
+
+          return NextResponse.json(
+            { error: 'Invalid or expired refresh token' },
+            { status: 401 }
+          )
+        }
+
+        if (!storedToken.user) {
+          await deleteFileRefreshTokenById(storedToken.id)
+          return NextResponse.json(
+            { error: 'User not found' },
+            { status: 401 }
+          )
+        }
+
+        const tokens = generateTokenPair({
+          userId: storedToken.user.id,
+          email: storedToken.user.email,
+        })
+
+        await deleteFileRefreshTokenById(storedToken.id)
+        await createFileRefreshToken({
+          userId: storedToken.user.id,
+          token: tokens.refreshToken,
+          expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        })
+
+        return NextResponse.json(tokens)
+      }
+
+      throw error
     }
-
-    // Generate new token pair
-    const tokens = generateTokenPair({
-      userId: storedToken.user.id,
-      email: storedToken.user.email,
-    })
-
-    // Delete old refresh token
-    await prisma.refreshToken.delete({
-      where: { id: storedToken.id },
-    })
-
-    // Store new refresh token
-    await prisma.refreshToken.create({
-      data: {
-        userId: storedToken.user.id,
-        token: tokens.refreshToken,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days
-      },
-    })
-
-    return NextResponse.json(tokens)
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
@@ -84,10 +132,6 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    console.error('Refresh token error:', error)
-    return NextResponse.json(
-      { error: 'Failed to refresh token' },
-      { status: 500 }
-    )
+    return createInternalErrorResponse(error, 'Refresh token error', 'Failed to refresh token')
   }
 }

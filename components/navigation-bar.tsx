@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Heart, Calendar, Lightbulb, MessageSquare, Users, Settings, ShoppingBag, LogOut, User } from 'lucide-react'
+import { Heart, Calendar, Lightbulb, MessageSquare, Users, Settings, ShoppingBag, LogOut, User, Plus, BarChart3 } from 'lucide-react'
 import { logout } from '@/lib/auth-client'
 
 export function NavigationBar() {
@@ -23,13 +23,13 @@ export function NavigationBar() {
   }
 
   const navItems = [
-    { href: '/dashboard', label: 'Dashboard', icon: Calendar },
+    { href: '/dashboard', label: 'Cycle', icon: Calendar },
+    { href: '/tracking', label: 'Track', icon: Plus },
+    { href: '/analytics', label: 'Analysis', icon: BarChart3 },
     { href: '/insights', label: 'Insights', icon: Lightbulb },
     { href: '/chatbot', label: 'Chat', icon: MessageSquare },
     { href: '/profile', label: 'Profile', icon: User },
-    { href: '/partner', label: 'Partner', icon: Users },
     { href: '/settings', label: 'Settings', icon: Settings },
-    { href: '/shop', label: 'Shop', icon: ShoppingBag },
   ]
 
   return (
@@ -42,7 +42,7 @@ export function NavigationBar() {
               <Heart className="h-5 w-5 text-primary-foreground" />
             </div>
             <span className="hidden font-semibold text-foreground sm:inline">
-              Cycle Companion
+              MenoMap
             </span>
           </Link>
 
@@ -65,9 +65,9 @@ export function NavigationBar() {
             })}
           </div>
 
-          {/* Mobile Navigation */}
+          {/* Mobile Navigation - 5 tabs like Clue app */}
           <div className="md:hidden flex items-center gap-1">
-            {navItems.slice(0, 3).map((item) => {
+            {navItems.slice(0, 5).map((item) => {
               const Icon = item.icon
               return (
                 <Link key={item.href} href={item.href}>
@@ -81,10 +81,6 @@ export function NavigationBar() {
                 </Link>
               )
             })}
-            {/* More menu button */}
-            <Button variant="ghost" size="sm" className="p-2">
-              <span className="text-xs font-semibold">•••</span>
-            </Button>
           </div>
 
           {/* Logout Button */}

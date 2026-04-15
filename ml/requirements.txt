@@ -1,0 +1,9 @@
+# MenoMap ML Module
+# Machine Learning module for menstrual cycle prediction
+# Currently uses Random Forest as baseline
+# Designed to be easily replaceable with more advanced models
+
+scikit-learn>=1.3.0
+numpy>=1.24.0
+pandas>=2.0.0
+joblib>=1.3.0

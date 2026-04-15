@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateRequest } from '@/lib/middleware'
+import { createInternalErrorResponse } from '@/lib/api-error'
 import { z } from 'zod'
 
 const updateProfileSchema = z.object({
@@ -49,11 +50,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(userData)
   } catch (error) {
-    console.error('Get profile error:', error)
-    return NextResponse.json(
-      { error: 'Failed to get profile' },
-      { status: 500 }
-    )
+    return createInternalErrorResponse(error, 'Get profile error', 'Failed to get profile')
   }
 }
 
@@ -97,10 +94,6 @@ export async function PATCH(request: NextRequest) {
       )
     }
 
-    console.error('Update profile error:', error)
-    return NextResponse.json(
-      { error: 'Failed to update profile' },
-      { status: 500 }
-    )
+    return createInternalErrorResponse(error, 'Update profile error', 'Failed to update profile')
   }
 }

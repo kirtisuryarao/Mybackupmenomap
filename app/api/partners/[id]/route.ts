@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateRequest } from '@/lib/middleware'
+import { createInternalErrorResponse } from '@/lib/api-error'
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const authResult = await authenticateRequest(request)
@@ -13,7 +14,7 @@ export async function DELETE(
     }
 
     const { user } = authResult
-    const partnerId = params.id
+    const { id: partnerId } = await params
 
     // Verify partner belongs to user
     const partner = await prisma.partner.findUnique({
@@ -40,10 +41,6 @@ export async function DELETE(
 
     return NextResponse.json({ message: 'Partner deleted successfully' })
   } catch (error) {
-    console.error('Delete partner error:', error)
-    return NextResponse.json(
-      { error: 'Failed to delete partner' },
-      { status: 500 }
-    )
+    return createInternalErrorResponse(error, 'Delete partner error', 'Failed to delete partner')
   }
 }

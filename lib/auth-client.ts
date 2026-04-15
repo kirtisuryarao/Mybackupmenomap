@@ -27,6 +27,22 @@ export interface AuthResponse {
   refreshToken: string
 }
 
+async function parseApiResponse<T>(response: Response): Promise<T> {
+  const contentType = response.headers.get('content-type') || ''
+  const isJson = contentType.includes('application/json')
+
+  if (isJson) {
+    return response.json() as Promise<T>
+  }
+
+  const text = await response.text()
+  throw new Error(
+    text.trim().startsWith('<')
+      ? 'The server returned an HTML error page instead of JSON. Check the backend server logs and environment variables.'
+      : text || 'The server returned an unexpected response.'
+  )
+}
+
 /**
  * Store tokens in localStorage
  */
@@ -108,11 +124,11 @@ export async function signup(data: {
   })
 
   if (!response.ok) {
-    const error = await response.json()
+    const error = await parseApiResponse<{ error?: string }>(response)
     throw new Error(error.error || 'Signup failed')
   }
 
-  const result: AuthResponse = await response.json()
+  const result = await parseApiResponse<AuthResponse>(response)
   setTokens({
     accessToken: result.accessToken,
     refreshToken: result.refreshToken,
@@ -133,11 +149,11 @@ export async function login(email: string, password: string): Promise<AuthRespon
   })
 
   if (!response.ok) {
-    const error = await response.json()
+    const error = await parseApiResponse<{ error?: string }>(response)
     throw new Error(error.error || 'Login failed')
   }
 
-  const result: AuthResponse = await response.json()
+  const result = await parseApiResponse<AuthResponse>(response)
   setTokens({
     accessToken: result.accessToken,
     refreshToken: result.refreshToken,
@@ -187,11 +203,11 @@ export async function refreshAccessToken(): Promise<AuthTokens> {
 
   if (!response.ok) {
     clearTokens()
-    const error = await response.json()
+    const error = await parseApiResponse<{ error?: string }>(response)
     throw new Error(error.error || 'Token refresh failed')
   }
 
-  const tokens: AuthTokens = await response.json()
+  const tokens = await parseApiResponse<AuthTokens>(response)
   setTokens(tokens)
   return tokens
 }
@@ -228,7 +244,7 @@ export async function getCurrentUser(): Promise<User> {
         throw new Error('Authentication failed')
       }
       
-      return await retryResponse.json()
+      return await parseApiResponse<User>(retryResponse)
     } catch (error) {
       clearTokens()
       throw new Error('Authentication failed')
@@ -236,11 +252,11 @@ export async function getCurrentUser(): Promise<User> {
   }
 
   if (!response.ok) {
-    const error = await response.json()
+    const error = await parseApiResponse<{ error?: string }>(response)
     throw new Error(error.error || 'Failed to get user data')
   }
 
-  return await response.json()
+  return await parseApiResponse<User>(response)
 }
 
 /**
