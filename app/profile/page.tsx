@@ -20,9 +20,10 @@ export default function ProfilePage() {
     cycleLength: 28,
     periodDuration: 5,
   });
-  const [partnerForm, setPartnerForm] = useState({ name: '', phone: '' });
+  const [partnerForm, setPartnerForm] = useState({ name: '', email: '', password: '' });
   const [isAddingPartner, setIsAddingPartner] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [addingPartnerLoading, setAddingPartnerLoading] = useState(false);
 
   useEffect(() => {
     if (profile) {
@@ -68,10 +69,15 @@ export default function ProfilePage() {
     if (!partnerForm.name.trim()) {
       newErrors.partnerName = 'Partner name is required';
     }
-    if (!partnerForm.phone.trim()) {
-      newErrors.partnerPhone = 'Phone number is required';
-    } else if (!/^\+?[\d\s\-()]+$/.test(partnerForm.phone)) {
-      newErrors.partnerPhone = 'Invalid phone number format';
+    if (!partnerForm.email.trim()) {
+      newErrors.partnerEmail = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(partnerForm.email)) {
+      newErrors.partnerEmail = 'Invalid email format';
+    }
+    if (!partnerForm.password.trim()) {
+      newErrors.partnerPassword = 'Password is required';
+    } else if (partnerForm.password.length < 6) {
+      newErrors.partnerPassword = 'Password must be at least 6 characters';
     }
 
     setErrors(newErrors);
@@ -113,12 +119,21 @@ export default function ProfilePage() {
     }
   };
 
-  const handleAddPartner = () => {
+  const handleAddPartner = async () => {
     if (validatePartnerForm()) {
-      addPartner(partnerForm.name, partnerForm.phone);
-      setPartnerForm({ name: '', phone: '' });
-      setIsAddingPartner(false);
-      setErrors({});
+      setAddingPartnerLoading(true);
+      try {
+        await addPartner(partnerForm.name, partnerForm.email, partnerForm.password);
+
+        // Reset form
+        setPartnerForm({ name: '', email: '', password: '' });
+        setIsAddingPartner(false);
+        setErrors({});
+      } catch (error: any) {
+        setErrors({ form: error?.message || 'An error occurred. Please try again.' });
+      } finally {
+        setAddingPartnerLoading(false);
+      }
     }
   };
 
@@ -314,7 +329,7 @@ export default function ProfilePage() {
                     >
                       <div>
                         <p className="font-medium text-foreground">{partner.name}</p>
-                        <p className="text-sm text-muted-foreground">{partner.phone}</p>
+                        <p className="text-sm text-muted-foreground">{partner.email}</p>
                       </div>
                       <Button
                         onClick={() => deletePartner(partner.id)}
@@ -350,6 +365,13 @@ export default function ProfilePage() {
               <div className="p-4 bg-secondary rounded-lg space-y-4">
                 <h3 className="font-semibold text-foreground">Add New Partner</h3>
 
+                {errors.form && (
+                  <p className="text-red-500 text-sm flex items-center gap-1">
+                    <AlertCircle className="w-4 h-4" />
+                    {errors.form}
+                  </p>
+                )}
+
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">
                     Partner Name
@@ -379,42 +401,76 @@ export default function ProfilePage() {
 
                 <div className="space-y-2">
                   <label className="text-sm font-medium text-foreground">
-                    Phone Number
+                    Partner Email ID
                   </label>
                   <Input
-                    placeholder="Enter partner's phone number"
-                    value={partnerForm.phone}
+                    type="email"
+                    placeholder="partner@example.com"
+                    value={partnerForm.email}
                     onChange={(e) => {
-                      setPartnerForm((prev) => ({ ...prev, phone: e.target.value }));
-                      if (errors.partnerPhone) {
+                      setPartnerForm((prev) => ({ ...prev, email: e.target.value }));
+                      if (errors.partnerEmail) {
                         setErrors((prev) => {
                           const newErrors = { ...prev };
-                          delete newErrors.partnerPhone;
+                          delete newErrors.partnerEmail;
                           return newErrors;
                         });
                       }
                     }}
-                    className={errors.partnerPhone ? 'border-red-500' : ''}
+                    className={errors.partnerEmail ? 'border-red-500' : ''}
                   />
-                  {errors.partnerPhone && (
+                  {errors.partnerEmail && (
                     <p className="text-red-500 text-sm flex items-center gap-1">
                       <AlertCircle className="w-4 h-4" />
-                      {errors.partnerPhone}
+                      {errors.partnerEmail}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">
+                    Create Password
+                  </label>
+                  <Input
+                    type="password"
+                    placeholder="••••••••"
+                    value={partnerForm.password}
+                    onChange={(e) => {
+                      setPartnerForm((prev) => ({ ...prev, password: e.target.value }));
+                      if (errors.partnerPassword) {
+                        setErrors((prev) => {
+                          const newErrors = { ...prev };
+                          delete newErrors.partnerPassword;
+                          return newErrors;
+                        });
+                      }
+                    }}
+                    className={errors.partnerPassword ? 'border-red-500' : ''}
+                  />
+                  {errors.partnerPassword && (
+                    <p className="text-red-500 text-sm flex items-center gap-1">
+                      <AlertCircle className="w-4 h-4" />
+                      {errors.partnerPassword}
                     </p>
                   )}
                 </div>
 
                 <div className="flex gap-2 pt-2">
-                  <Button onClick={handleAddPartner} className="bg-primary">
-                    Save Partner
+                  <Button 
+                    onClick={handleAddPartner} 
+                    className="bg-primary"
+                    disabled={addingPartnerLoading}
+                  >
+                    {addingPartnerLoading ? 'Adding...' : 'Save Partner'}
                   </Button>
                   <Button
                     onClick={() => {
                       setIsAddingPartner(false);
-                      setPartnerForm({ name: '', phone: '' });
+                      setPartnerForm({ name: '', email: '', password: '' });
                       setErrors({});
                     }}
                     variant="outline"
+                    disabled={addingPartnerLoading}
                   >
                     Cancel
                   </Button>

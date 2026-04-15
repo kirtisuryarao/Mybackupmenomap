@@ -12,7 +12,7 @@ export default function Home() {
     
     if (userSession) {
       // Redirect to dashboard
-      router.push('/dashboard')
+      router.push('/home')
     } else {
       // Redirect to login
       router.push('/auth/login')

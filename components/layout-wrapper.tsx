@@ -2,6 +2,7 @@
 
 import { ReactNode } from 'react'
 import { NavigationBar } from './navigation-bar'
+import { BottomNav } from './BottomNav'
 import { Footer } from './footer'
 
 interface LayoutWrapperProps {
@@ -10,14 +11,17 @@ interface LayoutWrapperProps {
 
 export function LayoutWrapper({ children }: LayoutWrapperProps) {
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-rose-50/30">
       <NavigationBar />
-      <main className="flex-1">
-        <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 pb-24 sm:px-6 sm:py-8 md:pb-8 lg:px-8">
+        <div>
           {children}
         </div>
       </main>
-      <Footer />
+      <div className="hidden md:block">
+        <Footer />
+      </div>
+      <BottomNav />
     </div>
   )
 }

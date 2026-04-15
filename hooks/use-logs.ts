@@ -20,6 +20,7 @@ interface UseLogsReturn {
   isLoading: boolean
   getLogForDate: (date: string) => DailyLog | undefined
   saveLog: (log: DailyLog) => Promise<void>
+  deleteLog: (logId: string) => Promise<void>
   refreshLogs: () => Promise<void>
 }
 
@@ -63,11 +64,30 @@ export function useLogs(): UseLogsReturn {
 
       // Refresh logs after saving
       await refreshLogs()
+      window.dispatchEvent(new CustomEvent('menomap:logs-updated'))
     } catch (error) {
       console.error('Failed to save log:', error)
       throw error
     }
   }, [refreshLogs])
 
-  return { logs, isLoading, getLogForDate, saveLog, refreshLogs }
+  const deleteLog = useCallback(async (logId: string) => {
+    try {
+      const response = await authenticatedFetch(`/api/logs?id=${logId}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to delete log')
+      }
+
+      await refreshLogs()
+      window.dispatchEvent(new CustomEvent('menomap:logs-updated'))
+    } catch (error) {
+      console.error('Failed to delete log:', error)
+      throw error
+    }
+  }, [refreshLogs])
+
+  return { logs, isLoading, getLogForDate, saveLog, deleteLog, refreshLogs }
 }

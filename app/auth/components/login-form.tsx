@@ -35,8 +35,8 @@ export function LoginForm() {
 
       await login(email, password)
 
-      // Redirect to dashboard
-      window.location.href = '/dashboard'
+      // Redirect to home
+      window.location.href = '/home'
     } catch (err: any) {
       setError(err.message || 'An error occurred. Please try again.')
       setIsLoading(false)
@@ -90,6 +90,24 @@ export function LoginForm() {
 
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? 'Signing in...' : 'Sign In'}
+          </Button>
+
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-border"></div>
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-card px-2 text-muted-foreground">Or</span>
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full border-primary text-primary hover:bg-primary/10"
+            onClick={() => (window.location.href = '/partner/login')}
+          >
+            👉 Login as Partner
           </Button>
 
           <div className="text-center text-sm">

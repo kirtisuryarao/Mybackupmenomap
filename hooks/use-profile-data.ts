@@ -6,8 +6,8 @@ import { authenticatedFetch } from '@/lib/auth-client';
 export interface Partner {
   id: string;
   name: string;
-  phone: string;
-  addedDate: string;
+  email: string;
+  createdAt: string;
 }
 
 export interface UserProfile {
@@ -41,8 +41,8 @@ export function useProfileData() {
             data.partners?.map((p: any) => ({
               id: p.id,
               name: p.name,
-              phone: p.phone,
-              addedDate: p.addedDate,
+              email: p.email,
+              createdAt: p.createdAt,
             })) || []
           );
         }
@@ -88,28 +88,29 @@ export function useProfileData() {
     }
   };
 
-  const addPartner = async (name: string, phone: string): Promise<Partner> => {
+  const addPartner = async (name: string, email: string, password: string): Promise<Partner> => {
     try {
-      const response = await authenticatedFetch('/api/partners', {
+      const response = await authenticatedFetch('/api/partner/create', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ name, phone }),
+        body: JSON.stringify({ name, email, password }),
       });
 
+      const payload = await response.json();
+
       if (response.ok) {
-        const newPartner = await response.json();
         const partner: Partner = {
-          id: newPartner.id,
-          name: newPartner.name,
-          phone: newPartner.phone,
-          addedDate: newPartner.addedDate,
+          id: payload.id,
+          name: payload.name,
+          email: payload.email,
+          createdAt: payload.createdAt,
         };
-        setPartnersState((prev) => [...prev, partner]);
+        setPartnersState((prev) => [partner, ...prev]);
         return partner;
       }
-      throw new Error('Failed to add partner');
+      throw new Error(payload.error || 'Failed to add partner');
     } catch (error) {
       console.error('Error adding partner:', error);
       throw error;

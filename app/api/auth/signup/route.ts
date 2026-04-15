@@ -16,7 +16,6 @@ const signupSchema = z.object({
   password: z.string().min(6, 'Password must be at least 6 characters'),
   lastPeriodDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format'),
   cycleLength: z.number().int().min(20).max(40),
-  partnerPhone: z.string().optional(),
 })
 
 export async function POST(request: NextRequest) {
@@ -80,17 +79,6 @@ export async function POST(request: NextRequest) {
           },
         })
 
-        // Create partner if phone provided
-        if (validatedData.partnerPhone) {
-          await tx.partner.create({
-            data: {
-              userId: user.id,
-              name: 'Partner',
-              phone: validatedData.partnerPhone,
-            },
-          })
-        }
-
         return user
       })
 
@@ -139,7 +127,6 @@ export async function POST(request: NextRequest) {
           name: validatedData.name,
           cycleLength: validatedData.cycleLength,
           lastPeriodDate: validatedData.lastPeriodDate,
-          partnerPhone: validatedData.partnerPhone,
         })
 
         const tokens = generateTokenPair({

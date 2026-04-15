@@ -8,14 +8,16 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { useCycleData } from '@/hooks/use-cycle-data'
+import { useProfileData } from '@/hooks/use-profile-data'
 import { Users, Bell, Share2, AlertCircle, X, Check } from 'lucide-react'
 import { PhaseBadge } from '@/components/phase-badge'
 
 export default function PartnerPage() {
   const { todayInfo, isLoading } = useCycleData()
-  const [isAdded, setIsAdded] = useState(false)
-  const [partner, setPartner] = useState<{ name: string; phone: string } | null>(null)
-  const [newPartner, setNewPartner] = useState({ name: '', phone: '' })
+  const { partners, addPartner, deletePartner } = useProfileData()
+  const [newPartner, setNewPartner] = useState({ name: '', email: '', password: '' })
+  const [isSavingPartner, setIsSavingPartner] = useState(false)
+  const [partnerError, setPartnerError] = useState('')
   const [notifications, setNotifications] = useState({
     periodStart: true,
     ovulation: true,
@@ -24,17 +26,28 @@ export default function PartnerPage() {
   })
   const [partnerView, setPartnerView] = useState(false)
 
-  const handleAddPartner = () => {
-    if (newPartner.name && newPartner.phone) {
-      setPartner(newPartner)
-      setIsAdded(true)
-      setNewPartner({ name: '', phone: '' })
+  const handleAddPartner = async () => {
+    if (!newPartner.name || !newPartner.email || !newPartner.password) return
+
+    setPartnerError('')
+    setIsSavingPartner(true)
+    try {
+      await addPartner(newPartner.name, newPartner.email, newPartner.password)
+      setNewPartner({ name: '', email: '', password: '' })
+    } catch (error: any) {
+      setPartnerError(error?.message || 'Failed to save partner')
+    } finally {
+      setIsSavingPartner(false)
     }
   }
 
-  const handleRemovePartner = () => {
-    setPartner(null)
-    setIsAdded(false)
+  const handleRemovePartner = async (partnerId: string) => {
+    setPartnerError('')
+    try {
+      await deletePartner(partnerId)
+    } catch (error: any) {
+      setPartnerError(error?.message || 'Failed to delete partner')
+    }
   }
 
   const handleNotificationChange = (key: keyof typeof notifications) => {
@@ -87,7 +100,7 @@ export default function PartnerPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {!isAdded ? (
+                {partners.length === 0 ? (
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="partner-name">Partner Name</Label>
@@ -101,41 +114,67 @@ export default function PartnerPage() {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="partner-phone">Phone Number</Label>
+                      <Label htmlFor="partner-email">Partner Email</Label>
                       <Input
-                        id="partner-phone"
-                        type="tel"
-                        placeholder="+91 "
-                        value={newPartner.phone}
+                        id="partner-email"
+                        type="email"
+                        placeholder="partner@example.com"
+                        value={newPartner.email}
                         onChange={(e) =>
-                          setNewPartner((prev) => ({ ...prev, phone: e.target.value }))
+                          setNewPartner((prev) => ({ ...prev, email: e.target.value }))
                         }
                       />
                     </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="partner-password">Create Password</Label>
+                      <Input
+                        id="partner-password"
+                        type="password"
+                        placeholder="At least 8 characters"
+                        value={newPartner.password}
+                        onChange={(e) =>
+                          setNewPartner((prev) => ({ ...prev, password: e.target.value }))
+                        }
+                      />
+                    </div>
+                    {partnerError && (
+                      <p className="text-sm text-destructive flex items-center gap-1">
+                        <AlertCircle className="h-4 w-4" />
+                        {partnerError}
+                      </p>
+                    )}
                     <Button
                       onClick={handleAddPartner}
-                      disabled={!newPartner.name || !newPartner.phone}
+                      disabled={!newPartner.name || !newPartner.email || !newPartner.password || isSavingPartner}
                       className="w-full"
                     >
                       <Share2 className="h-4 w-4 mr-2" />
-                      Add Partner
+                      {isSavingPartner ? 'Saving...' : 'Save Partner'}
                     </Button>
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    <div className="bg-primary/10 rounded-lg p-4">
-                      <h3 className="font-semibold text-foreground mb-2">Connected Partner</h3>
-                      <p className="text-sm text-muted-foreground mb-1">{partner?.name}</p>
-                      <p className="text-xs text-muted-foreground">{partner?.phone}</p>
-                    </div>
-                    <Button
-                      onClick={handleRemovePartner}
-                      variant="outline"
-                      className="w-full"
-                    >
-                      <X className="h-4 w-4 mr-2" />
-                      Remove Partner
-                    </Button>
+                  <div className="space-y-3">
+                    {partners.map((partner) => (
+                      <div key={partner.id} className="bg-primary/10 rounded-lg p-4">
+                        <h3 className="font-semibold text-foreground mb-2">Connected Partner</h3>
+                        <p className="text-sm text-muted-foreground mb-1">{partner.name}</p>
+                        <p className="text-xs text-muted-foreground mb-3">{partner.email}</p>
+                        <Button
+                          onClick={() => handleRemovePartner(partner.id)}
+                          variant="outline"
+                          className="w-full"
+                        >
+                          <X className="h-4 w-4 mr-2" />
+                          Remove Partner
+                        </Button>
+                      </div>
+                    ))}
+                    {partnerError && (
+                      <p className="text-sm text-destructive flex items-center gap-1">
+                        <AlertCircle className="h-4 w-4" />
+                        {partnerError}
+                      </p>
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -152,7 +191,7 @@ export default function PartnerPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {isAdded ? (
+                {partners.length > 0 ? (
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <label className="text-sm font-medium">Period Starts</label>
@@ -236,7 +275,7 @@ export default function PartnerPage() {
         </div>
 
         {/* Preview Section */}
-        {isAdded && !partnerView && (
+        {partners.length > 0 && !partnerView && (
           <Card>
             <CardHeader>
               <CardTitle>What Your Partner Sees</CardTitle>
@@ -250,7 +289,7 @@ export default function PartnerPage() {
         )}
 
         {/* Partner View Preview */}
-        {partnerView && isAdded && (
+        {partnerView && partners.length > 0 && (
           <Card className="border-2 border-primary">
             <CardHeader className="border-b border-primary pb-4">
               <div className="flex items-center justify-between">

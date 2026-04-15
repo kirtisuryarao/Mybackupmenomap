@@ -18,7 +18,6 @@ export function SignupForm() {
     confirmPassword: '',
     lastPeriodDate: '',
     cycleLength: '28',
-    partnerPhone: '',
   })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
@@ -82,11 +81,10 @@ export function SignupForm() {
         password: formData.password,
         lastPeriodDate: formData.lastPeriodDate,
         cycleLength: cycleLength,
-        partnerPhone: formData.partnerPhone || undefined,
       })
 
-      // Redirect to dashboard
-      window.location.href = '/dashboard'
+      // Redirect to home
+      window.location.href = '/home'
     } catch (err: any) {
       setError(err.message || 'An error occurred. Please try again.')
       setIsLoading(false)
@@ -220,21 +218,6 @@ export function SignupForm() {
               Usually 21-40 days (28 is average)
             </p>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="partnerPhone">Partner Phone (Optional)</Label>
-            <Input
-              id="partnerPhone"
-              name="partnerPhone"
-              type="tel"
-              placeholder="+1 (555) 123-4567"
-              value={formData.partnerPhone}
-              onChange={handleInputChange}
-            />
-            <p className="text-xs text-muted-foreground">
-              To send partner notifications (can be added later)
-            </p>
-          </div>
-
           {error && (
             <div className="flex gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
               <AlertCircle className="h-4 w-4 flex-shrink-0 mt-0.5" />

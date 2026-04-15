@@ -14,6 +14,10 @@ import {
   Thermometer,
   X,
   Check,
+  Trash2,
+  Pencil,
+  History,
+  ClipboardList,
 } from 'lucide-react'
 
 // Options matching the Clue app screenshots
@@ -86,11 +90,14 @@ function getWeekDates(centerDate: Date): Date[] {
 }
 
 export default function TrackingPage() {
-  const { logs, isLoading, getLogForDate, saveLog } = useLogs()
+  const { logs, isLoading, getLogForDate, saveLog, deleteLog } = useLogs()
   const { todayInfo } = useCycleData()
   const [selectedDate, setSelectedDate] = useState(getDateString(new Date()))
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [tab, setTab] = useState<'log' | 'history'>('log')
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   // Form state
   const [flow, setFlow] = useState<string | null>(null)
@@ -162,11 +169,56 @@ export default function TrackingPage() {
     }
   }
 
+  const handleDelete = async (logId: string) => {
+    setDeletingId(logId)
+    try {
+      await deleteLog(logId)
+      setConfirmDeleteId(null)
+    } catch (error) {
+      console.error('Delete failed:', error)
+    } finally {
+      setDeletingId(null)
+    }
+  }
+
+  const handleEditLog = (dateStr: string) => {
+    setSelectedDate(dateStr)
+    setTab('log')
+  }
+
   const weekDates = getWeekDates(new Date(selectedDate + 'T00:00:00'))
 
   return (
     <LayoutWrapper>
       <div className="space-y-6 max-w-2xl mx-auto">
+        {/* Tab Switcher */}
+        <div className="flex rounded-lg border border-border overflow-hidden">
+          <button
+            onClick={() => setTab('log')}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors ${
+              tab === 'log'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-background hover:bg-muted'
+            }`}
+          >
+            <ClipboardList className="h-4 w-4" />
+            Log Entry
+          </button>
+          <button
+            onClick={() => setTab('history')}
+            className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-medium transition-colors ${
+              tab === 'history'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-background hover:bg-muted'
+            }`}
+          >
+            <History className="h-4 w-4" />
+            Log History
+          </button>
+        </div>
+
+        {tab === 'log' ? (
+          <>
         {/* Date Selector Header */}
         <div className="text-center space-y-3">
           <div className="flex items-center justify-between">
@@ -401,6 +453,129 @@ export default function TrackingPage() {
             )}
           </Button>
         </div>
+          </>
+        ) : (
+          /* ===== LOG HISTORY TAB ===== */
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Logged Data</h2>
+              <p className="text-sm text-muted-foreground">{logs.length} entries</p>
+            </div>
+
+            {isLoading ? (
+              <p className="text-center text-muted-foreground py-8">Loading logs...</p>
+            ) : logs.length === 0 ? (
+              <Card>
+                <CardContent className="py-8 text-center text-muted-foreground">
+                  No logs yet. Switch to &quot;Log Entry&quot; to start tracking.
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {logs.map((log) => (
+                  <Card key={log.id || log.date} className="relative">
+                    {/* Delete confirmation overlay */}
+                    {confirmDeleteId === log.id && (
+                      <div className="absolute inset-0 z-10 bg-background/95 backdrop-blur-sm rounded-lg flex items-center justify-center gap-3 p-4">
+                        <p className="text-sm font-medium">Delete this log?</p>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          disabled={deletingId === log.id}
+                          onClick={() => log.id && handleDelete(log.id)}
+                        >
+                          {deletingId === log.id ? 'Deleting...' : 'Yes, delete'}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setConfirmDeleteId(null)}
+                        >
+                          Cancel
+                        </Button>
+                      </div>
+                    )}
+
+                    <CardContent className="py-4 px-4">
+                      <div className="flex items-start justify-between gap-2">
+                        {/* Date + summary */}
+                        <div className="flex-1 min-w-0 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <p className="font-semibold text-sm">
+                              {formatDateDisplay(log.date)}
+                            </p>
+                            <span className="text-xs text-muted-foreground">{log.date}</span>
+                          </div>
+
+                          <div className="flex flex-wrap gap-1.5">
+                            {log.flow && (
+                              <Badge variant="secondary" className="bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 text-xs">
+                                🩸 {log.flow}
+                              </Badge>
+                            )}
+                            {log.spotting && (
+                              <Badge variant="secondary" className="bg-orange-100 text-orange-700 dark:bg-orange-950 dark:text-orange-300 text-xs">
+                                Spotting: {log.spotting}
+                              </Badge>
+                            )}
+                            {log.mood.length > 0 && log.mood.map(m => (
+                              <Badge key={m} variant="outline" className="text-xs">
+                                {m}
+                              </Badge>
+                            ))}
+                            {log.symptoms.length > 0 && log.symptoms.map(s => (
+                              <Badge key={s} variant="secondary" className="text-xs">
+                                {s}
+                              </Badge>
+                            ))}
+                            {log.temperature && (
+                              <Badge variant="secondary" className="text-xs">
+                                🌡 {log.temperature}°C
+                              </Badge>
+                            )}
+                            {log.sleepQuality && (
+                              <Badge variant="secondary" className="text-xs">
+                                💤 {log.sleepQuality}
+                              </Badge>
+                            )}
+                          </div>
+
+                          {log.notes && (
+                            <p className="text-xs text-muted-foreground truncate">
+                              📝 {log.notes}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            title="Edit this log"
+                            onClick={() => handleEditLog(log.date)}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:text-destructive"
+                            title="Delete this log"
+                            onClick={() => setConfirmDeleteId(log.id ?? null)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </LayoutWrapper>
   )

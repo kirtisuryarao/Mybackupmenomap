@@ -3,6 +3,7 @@ export type CyclePhase = 'period' | 'follicular' | 'ovulation' | 'luteal'
 export interface CycleData {
   lastPeriodDate: string // YYYY-MM-DD
   cycleLength: number // days (default 28)
+  cycleStarts?: string[] // all detected cycle start dates YYYY-MM-DD
 }
 
 export interface DayInfo {
@@ -68,21 +69,43 @@ export function getDayInfo(
 }
 
 /**
- * Get all days in a month with their cycle information
+ * Get all days in a month with their cycle information.
+ * When cycleStarts is provided (actual tracked cycle start dates), each day
+ * anchors to the most recent start that is on or before that day, giving
+ * accurate phase colours for past months. For future days beyond all known
+ * starts, the mathematical projection from lastPeriodDate is used.
  */
 export function getMonthCycleDays(
   year: number,
   month: number,
   lastPeriodDate: Date,
-  cycleLength: number
+  cycleLength: number,
+  cycleStarts?: Date[]
 ): DayInfo[] {
-  const firstDay = new Date(year, month, 1)
   const lastDay = new Date(year, month + 1, 0)
   const days: DayInfo[] = []
 
+  // Sort ascending so we can binary-scan for the best anchor per day
+  const sortedStarts = cycleStarts && cycleStarts.length > 0
+    ? [...cycleStarts].sort((a, b) => a.getTime() - b.getTime())
+    : null
+
   for (let i = 1; i <= lastDay.getDate(); i++) {
     const date = new Date(year, month, i)
-    days.push(getDayInfo(date, lastPeriodDate, cycleLength))
+
+    let refDate = lastPeriodDate
+    if (sortedStarts) {
+      // Find the latest cycle start that is on or before this day
+      for (const start of sortedStarts) {
+        if (start <= date) {
+          refDate = start
+        } else {
+          break
+        }
+      }
+    }
+
+    days.push(getDayInfo(date, refDate, cycleLength))
   }
 
   return days

@@ -3,13 +3,13 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Heart, Calendar, Lightbulb, MessageSquare, Users, Settings, ShoppingBag, LogOut, User, Plus, BarChart3 } from 'lucide-react'
+import { Heart, CalendarDays, Lightbulb, MessageSquare, Settings, LogOut, User, Plus, BarChart3, Home } from 'lucide-react'
 import { logout } from '@/lib/auth-client'
 
 export function NavigationBar() {
   const pathname = usePathname()
 
-  const isActive = (path: string) => pathname === path
+  const isActive = (path: string) => pathname === path || pathname.startsWith(`${path}/`)
 
   const handleLogout = async () => {
     try {
@@ -23,7 +23,8 @@ export function NavigationBar() {
   }
 
   const navItems = [
-    { href: '/dashboard', label: 'Cycle', icon: Calendar },
+    { href: '/home', label: 'Home', icon: Home },
+    { href: '/calendar', label: 'Calendar', icon: CalendarDays },
     { href: '/tracking', label: 'Track', icon: Plus },
     { href: '/analytics', label: 'Analysis', icon: BarChart3 },
     { href: '/insights', label: 'Insights', icon: Lightbulb },
@@ -33,11 +34,11 @@ export function NavigationBar() {
   ]
 
   return (
-    <nav className="sticky top-0 z-40 border-b border-border bg-card shadow-sm">
+    <nav className="sticky top-0 z-40 hidden border-b border-border bg-card/90 shadow-sm backdrop-blur md:block">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
-          <Link href="/dashboard" className="flex items-center gap-2">
+          <Link href="/home" className="flex items-center gap-2">
             <div className="rounded-lg bg-primary p-2">
               <Heart className="h-5 w-5 text-primary-foreground" />
             </div>
@@ -64,25 +65,6 @@ export function NavigationBar() {
               )
             })}
           </div>
-
-          {/* Mobile Navigation - 5 tabs like Clue app */}
-          <div className="md:hidden flex items-center gap-1">
-            {navItems.slice(0, 5).map((item) => {
-              const Icon = item.icon
-              return (
-                <Link key={item.href} href={item.href}>
-                  <Button
-                    variant={isActive(item.href) ? 'default' : 'ghost'}
-                    size="sm"
-                    className="p-2"
-                  >
-                    <Icon className="h-4 w-4" />
-                  </Button>
-                </Link>
-              )
-            })}
-          </div>
-
           {/* Logout Button */}
           <Button 
             variant="outline" 

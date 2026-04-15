@@ -113,7 +113,6 @@ export async function signup(data: {
   password: string
   lastPeriodDate: string
   cycleLength: number
-  partnerPhone?: string
 }): Promise<AuthResponse> {
   const response = await fetch('/api/auth/signup', {
     method: 'POST',

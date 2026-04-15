@@ -72,10 +72,10 @@ export default function SettingsPage() {
     }
   }
 
-  if (isLoading || !cycleData) {
+  if (isLoading) {
     return (
       <LayoutWrapper>
-        <div className="text-center">Loading settings...</div>
+        <div className="text-center py-12">Loading settings...</div>
       </LayoutWrapper>
     )
   }

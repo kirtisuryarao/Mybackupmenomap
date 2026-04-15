@@ -10,6 +10,7 @@ interface UseCycleDataReturn {
   cycleData: CycleData | null
   todayInfo: DayInfo | null
   isLoading: boolean
+  refreshCycleData: () => Promise<void>
   setCycleData: (data: CycleData) => void
   updateCycleData: (lastPeriodDate: string, cycleLength: number) => void
 }
@@ -18,19 +19,20 @@ export function useCycleData(): UseCycleDataReturn {
   const [cycleData, setCycleDataState] = useState<CycleData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  // Load from API on mount
-  useEffect(() => {
-    async function loadCycleData() {
-      try {
-        const response = await authenticatedFetch('/api/cycle')
-        if (response.ok) {
-          const data = await response.json()
+  const refreshCycleData = useCallback(async () => {
+    try {
+      const response = await authenticatedFetch('/api/cycle')
+      if (response.ok) {
+        const data = await response.json()
+        // Accept CycleEntry data even without flow logs
+        if (data.lastPeriodDate && data.cycleLength) {
           setCycleDataState({
             lastPeriodDate: data.lastPeriodDate,
             cycleLength: data.cycleLength,
+            cycleStarts: data.cycleStarts || [data.lastPeriodDate],
           })
         } else {
-          // Fallback to default if not authenticated or error
+          // Only fallback to defaults if no data at all
           const defaultLastPeriod = new Date()
           defaultLastPeriod.setDate(defaultLastPeriod.getDate() - 14)
           setCycleDataState({
@@ -38,22 +40,36 @@ export function useCycleData(): UseCycleDataReturn {
             cycleLength: DEFAULT_CYCLE_LENGTH,
           })
         }
-      } catch (error) {
-        console.error('Failed to load cycle data:', error)
-        // Fallback to default
-        const defaultLastPeriod = new Date()
-        defaultLastPeriod.setDate(defaultLastPeriod.getDate() - 14)
-        setCycleDataState({
-          lastPeriodDate: formatDate(defaultLastPeriod),
-          cycleLength: DEFAULT_CYCLE_LENGTH,
-        })
-      } finally {
-        setIsLoading(false)
+      } else {
+        throw new Error('API returned error')
       }
+    } catch (error) {
+      console.error('Failed to load cycle data:', error)
+      const defaultLastPeriod = new Date()
+      defaultLastPeriod.setDate(defaultLastPeriod.getDate() - 14)
+      setCycleDataState({
+        lastPeriodDate: formatDate(defaultLastPeriod),
+        cycleLength: DEFAULT_CYCLE_LENGTH,
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    refreshCycleData()
+  }, [refreshCycleData])
+
+  useEffect(() => {
+    const onCycleChanged = () => {
+      refreshCycleData()
     }
 
-    loadCycleData()
-  }, [])
+    window.addEventListener('menomap:logs-updated', onCycleChanged)
+    return () => {
+      window.removeEventListener('menomap:logs-updated', onCycleChanged)
+    }
+  }, [refreshCycleData])
 
   const setCycleData = useCallback(async (data: CycleData) => {
     setCycleDataState(data)
@@ -108,6 +124,7 @@ export function useCycleData(): UseCycleDataReturn {
     cycleData,
     todayInfo,
     isLoading,
+    refreshCycleData,
     setCycleData,
     updateCycleData,
   }
