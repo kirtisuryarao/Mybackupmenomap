@@ -183,32 +183,45 @@ export async function logout(): Promise<void> {
 }
 
 /**
- * Refresh access token
+ * Refresh access token (with mutex to prevent concurrent refreshes)
  */
+let refreshPromise: Promise<AuthTokens> | null = null
+
 export async function refreshAccessToken(): Promise<AuthTokens> {
-  const refreshToken = getRefreshToken()
-  
-  if (!refreshToken) {
-    throw new Error('No refresh token available')
+  // If a refresh is already in progress, reuse it
+  if (refreshPromise) {
+    return refreshPromise
   }
 
-  const response = await fetch('/api/auth/refresh', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ refreshToken }),
+  refreshPromise = (async () => {
+    const refreshToken = getRefreshToken()
+    
+    if (!refreshToken) {
+      throw new Error('No refresh token available')
+    }
+
+    const response = await fetch('/api/auth/refresh', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ refreshToken }),
+    })
+
+    if (!response.ok) {
+      clearTokens()
+      const error = await parseApiResponse<{ error?: string }>(response)
+      throw new Error(error.error || 'Token refresh failed')
+    }
+
+    const tokens = await parseApiResponse<AuthTokens>(response)
+    setTokens(tokens)
+    return tokens
+  })().finally(() => {
+    refreshPromise = null
   })
 
-  if (!response.ok) {
-    clearTokens()
-    const error = await parseApiResponse<{ error?: string }>(response)
-    throw new Error(error.error || 'Token refresh failed')
-  }
-
-  const tokens = await parseApiResponse<AuthTokens>(response)
-  setTokens(tokens)
-  return tokens
+  return refreshPromise
 }
 
 /**

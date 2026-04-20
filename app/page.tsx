@@ -7,10 +7,10 @@ export default function Home() {
   const router = useRouter()
 
   useEffect(() => {
-    // Check if user is logged in
-    const userSession = localStorage.getItem('user_session')
+    // Check if user is logged in via access_token (matches auth-client.ts)
+    const accessToken = localStorage.getItem('access_token')
     
-    if (userSession) {
+    if (accessToken) {
       // Redirect to dashboard
       router.push('/home')
     } else {

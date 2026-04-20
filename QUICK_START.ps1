@@ -66,7 +66,7 @@ if ($layoutContent -match "ChatWidget") {
 } else {
     Write-Host "⚠️  ChatWidget not found in app/layout.tsx" -ForegroundColor Yellow
     Write-Host "   Make sure to add: import { ChatWidget } from '@/components/chat-widget'"
-    Write-Host "   And add <ChatWidget /> in the body"
+    Write-Host "   And add `<ChatWidget />` in the body"
 }
 Write-Host ""
 
@@ -105,9 +105,9 @@ Write-Host "2. Start development server:" -ForegroundColor Yellow
 Write-Host "   npm run dev"
 Write-Host ""
 Write-Host "3. Test the features:" -ForegroundColor Yellow
-Write-Host "   → Chat widget in bottom-right corner
-   → Click calendar dates to track
-   → Mark period start to reset cycle"
+Write-Host "   → Chat widget in bottom-right corner"
+Write-Host "   → Click calendar dates to track"
+Write-Host "   → Mark period start to reset cycle"
 Write-Host ""
 Write-Host "4. Check database:" -ForegroundColor Yellow
 Write-Host "   npx prisma studio"

@@ -47,6 +47,30 @@
         "shareWithPartner": false,
         "allowHealthInsight": true
       }
+    },
+    {
+      "id": "11cf9e9b-77ff-4948-8de9-aa853e5cee32",
+      "email": "kirti@gmail.com",
+      "passwordHash": "$2a$12$HUjB7s52GAgDfCTh7wbqAu5uNTkvt4zn1IhpTfQ7HcNSxITqMB5XO",
+      "name": "coco",
+      "age": null,
+      "cycleLength": 28,
+      "periodDuration": 5,
+      "createdAt": "2026-04-16T02:42:21.195Z",
+      "updatedAt": "2026-04-16T02:42:21.195Z",
+      "lastPeriodDate": "2026-03-23",
+      "partners": [],
+      "notificationSettings": {
+        "periodReminder": true,
+        "phaseChange": true,
+        "pushNotifications": false,
+        "emailNotifications": false
+      },
+      "privacySettings": {
+        "profilePublic": false,
+        "shareWithPartner": false,
+        "allowHealthInsight": true
+      }
     }
   ],
   "refreshTokens": [
@@ -84,6 +108,20 @@
       "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI3NzRlOWZkMC0xMjQ5LTQ4NTYtYTBlNi0yNGNjOTRmNjI2YzAiLCJlbWFpbCI6ImtpcnRpbS5zdXJ5YXJhb0BnbWFpbC5jb20iLCJpYXQiOjE3NzYyNjgwNzEsImV4cCI6MTc3Njg3Mjg3MX0.0TpVujj9nqoKdQvM7aQzN2zj7Rggaf0HEg1EfV4YCmw",
       "expiresAt": "2026-04-22T15:47:51.841Z",
       "createdAt": "2026-04-15T15:47:51.930Z"
+    },
+    {
+      "id": "0cbc971e-ad5f-40b3-a2ae-0bef4992a92f",
+      "userId": "11cf9e9b-77ff-4948-8de9-aa853e5cee32",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIxMWNmOWU5Yi03N2ZmLTQ5NDgtOGRlOS1hYTg1M2U1Y2VlMzIiLCJlbWFpbCI6ImtpcnRpQGdtYWlsLmNvbSIsImlhdCI6MTc3NjMwNzM0MSwiZXhwIjoxNzc2OTEyMTQxfQ.SW0llYyO6nujWfQzPufhywXFdrSFMeLJf8K1V_bVCfk",
+      "expiresAt": "2026-04-23T02:42:21.204Z",
+      "createdAt": "2026-04-16T02:42:21.208Z"
+    },
+    {
+      "id": "fe2bd012-156b-4e91-b187-166bbb5a61c3",
+      "userId": "11cf9e9b-77ff-4948-8de9-aa853e5cee32",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiIxMWNmOWU5Yi03N2ZmLTQ5NDgtOGRlOS1hYTg1M2U1Y2VlMzIiLCJlbWFpbCI6ImtpcnRpQGdtYWlsLmNvbSIsImlhdCI6MTc3NjMwODQzMSwiZXhwIjoxNzc2OTEzMjMxfQ.cdGaVkLKDJoR6XI0-rru0io_I82V0-pGfFgfobG-tG0",
+      "expiresAt": "2026-04-23T03:00:31.188Z",
+      "createdAt": "2026-04-16T03:00:31.189Z"
     }
   ]
 }

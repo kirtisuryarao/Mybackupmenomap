@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { authenticateRequest } from '@/lib/middleware'
 import { createInternalErrorResponse } from '@/lib/api-error'
 import { recomputeCycleForUser, validateFlowEntryLength } from '@/lib/cycle-recalculation'
+import { buildHybridPredictionForUser } from '@/lib/hybrid-prediction'
 
 const dailyLogSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
@@ -75,7 +76,7 @@ export async function POST(request: NextRequest) {
     const logDate = new Date(`${data.date}T00:00:00`)
     const shouldValidateFlow = !!data.flow || data.isPeriodStart
 
-    let normalizedFlow = data.flow || null
+    let normalizedFlow = data.flow || (data.isPeriodStart ? 'light' : null)
     let warning: string | null = null
 
     if (shouldValidateFlow) {
@@ -117,6 +118,39 @@ export async function POST(request: NextRequest) {
 
     const recalc = await recomputeCycleForUser(user.userId, { persist: true })
 
+    console.log(`[Logs API] User ${user.userId}: Cycle recalculation result`, {
+      hasCycleData: recalc.hasCycleData,
+      hasAnyLogs: recalc.hasAnyLogs,
+      lastPeriodDate: recalc.lastPeriodDate,
+      cycleLength: recalc.cycleLength,
+      cycleStarts: recalc.cycleStarts.length,
+      savedFlow: normalizedFlow,
+      isPeriodStart: data.isPeriodStart,
+      warning,
+    })
+
+    console.log(`[Logs API] User ${user.userId}: Daily log created/updated for ${data.date}`, {
+      isPeriodStart: data.isPeriodStart,
+      flow: normalizedFlow,
+      cycleRecalculated: recalc.hasCycleData,
+      lastPeriodDate: recalc.lastPeriodDate,
+      cycleLength: recalc.cycleLength,
+    })
+
+    let hybridPrediction: Awaited<ReturnType<typeof buildHybridPredictionForUser>> | null = null
+    try {
+      hybridPrediction = await buildHybridPredictionForUser(user.userId, {
+        includeExplanation: false,
+        persist: true,
+      })
+      console.log(`[Logs API] User ${user.userId}: Prediction updated`, {
+        predictedDate: hybridPrediction?.predictedPeriodDate,
+        confidence: hybridPrediction?.confidence,
+      })
+    } catch (predictionError) {
+      console.error('Hybrid prediction update failed after log save:', predictionError)
+    }
+
     return NextResponse.json(
       {
         id: log.id,
@@ -133,7 +167,17 @@ export async function POST(request: NextRequest) {
           hasCycleData: recalc.hasCycleData,
           lastPeriodDate: recalc.lastPeriodDate,
           cycleLength: recalc.cycleLength,
-          prediction: recalc.prediction,
+          prediction:
+            hybridPrediction
+              ? {
+                  predictedPeriodDate: hybridPrediction.predictedPeriodDate,
+                  ovulationDate: hybridPrediction.ovulationDate,
+                  fertileWindowStart: hybridPrediction.fertileWindowStart,
+                  fertileWindowEnd: hybridPrediction.fertileWindowEnd,
+                  confidence: hybridPrediction.confidence,
+                  method: hybridPrediction.method,
+                }
+              : recalc.prediction,
         },
       },
       { status: 201 }
@@ -177,13 +221,33 @@ export async function DELETE(request: NextRequest) {
 
     const recalc = await recomputeCycleForUser(user.userId, { persist: true })
 
+    let hybridPrediction: Awaited<ReturnType<typeof buildHybridPredictionForUser>> | null = null
+    try {
+      hybridPrediction = await buildHybridPredictionForUser(user.userId, {
+        includeExplanation: false,
+        persist: true,
+      })
+    } catch (predictionError) {
+      console.error('Hybrid prediction update failed after log delete:', predictionError)
+    }
+
     return NextResponse.json({
       success: true,
       cycle: {
         hasCycleData: recalc.hasCycleData,
         lastPeriodDate: recalc.lastPeriodDate,
         cycleLength: recalc.cycleLength,
-        prediction: recalc.prediction,
+        prediction:
+          hybridPrediction
+            ? {
+                predictedPeriodDate: hybridPrediction.predictedPeriodDate,
+                ovulationDate: hybridPrediction.ovulationDate,
+                fertileWindowStart: hybridPrediction.fertileWindowStart,
+                fertileWindowEnd: hybridPrediction.fertileWindowEnd,
+                confidence: hybridPrediction.confidence,
+                method: hybridPrediction.method,
+              }
+            : recalc.prediction,
       },
     })
   } catch (error) {

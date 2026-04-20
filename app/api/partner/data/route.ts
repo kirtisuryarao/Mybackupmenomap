@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { validatePartnerRequest } from '@/lib/partner-auth'
+import { getCycleData } from '@/lib/get-cycle-data'
 
 export async function GET(request: NextRequest) {
   try {
@@ -30,12 +31,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Partner not found' }, { status: 404 })
     }
 
-    // Fetch user's latest cycle data
-    const latestCycleEntry = await prisma.cycleEntry.findFirst({
-      where: { userId: partner.userId },
-      orderBy: { lastPeriodDate: 'desc' },
-      take: 1,
-    })
+    // Use shared utility to get FRESH cycle data - SAME SOURCE AS CALENDAR & AI
+    const cycleData = await getCycleData(partner.userId)
 
     // Fetch latest prediction
     const prediction = await prisma.prediction.findFirst({
@@ -59,6 +56,11 @@ export async function GET(request: NextRequest) {
       take: 30,
     })
 
+    console.log(`[PartnerData] Partner ${partnerId} fetching data for user ${partner.userId}`, {
+      hasCycleData: cycleData.hasCycleData,
+      source: cycleData.source,
+    })
+
     return NextResponse.json({
       partner: {
         id: partner.id,
@@ -66,8 +68,9 @@ export async function GET(request: NextRequest) {
       },
       linkedUser: partner.user,
       cycleData: {
-        lastPeriodDate: latestCycleEntry?.lastPeriodDate || null,
-        cycleLength: latestCycleEntry?.cycleLength || partner.user.cycleLength,
+        lastPeriodDate: cycleData.lastPeriodDate,
+        cycleLength: cycleData.cycleLength,
+        source: cycleData.source,
       },
       prediction: prediction
         ? {

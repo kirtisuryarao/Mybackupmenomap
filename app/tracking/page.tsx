@@ -95,6 +95,7 @@ export default function TrackingPage() {
   const [selectedDate, setSelectedDate] = useState(getDateString(new Date()))
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [tab, setTab] = useState<'log' | 'history'>('log')
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
@@ -149,6 +150,7 @@ export default function TrackingPage() {
 
   const handleSave = async () => {
     setSaving(true)
+    setSaveError(null)
     try {
       const log: DailyLog = {
         date: selectedDate,
@@ -162,8 +164,12 @@ export default function TrackingPage() {
       }
       await saveLog(log)
       setSaved(true)
+      // Auto-reset saved status after 3s
+      setTimeout(() => setSaved(false), 3000)
     } catch (error) {
       console.error('Save failed:', error)
+      setSaveError('Failed to save. Please check your connection and try again.')
+      setTimeout(() => setSaveError(null), 5000)
     } finally {
       setSaving(false)
     }
@@ -431,7 +437,17 @@ export default function TrackingPage() {
         </Card>
 
         {/* Save Button */}
-        <div className="sticky bottom-4">
+        <div className="sticky bottom-4 space-y-2">
+          {saveError && (
+            <div className="bg-red-100 border border-red-300 text-red-800 px-4 py-2 rounded-lg text-sm text-center">
+              {saveError}
+            </div>
+          )}
+          {saved && !saveError && (
+            <div className="bg-green-100 border border-green-300 text-green-800 px-4 py-2 rounded-lg text-sm text-center">
+              Log saved successfully!
+            </div>
+          )}
           <Button
             onClick={handleSave}
             disabled={saving}

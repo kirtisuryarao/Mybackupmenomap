@@ -5,6 +5,7 @@ import {
   detectCycleStarts,
   predictNextCycle,
   weightedAverageCycleLength,
+  averagePeriodLength,
 } from '@/lib/cycle-engine'
 
 const DEFAULT_CYCLE_LENGTH = 28
@@ -100,142 +101,189 @@ export async function recomputeCycleForUser(
 ): Promise<CycleRecalculationResult> {
   const persist = options?.persist ?? true
 
-  const allLogs = await prisma.dailyLog.findMany({
-    where: { userId },
-    orderBy: { date: 'asc' },
-    select: {
-      id: true,
-      date: true,
-      flow: true,
-      spotting: true,
-    },
-  })
-
-  const hasAnyLogs = allLogs.length > 0
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { cycleLength: true },
-  })
-
-  const flowLogs = allLogs.filter((log) => !!log.flow)
-  const { normalizedFlowLogs, ignoredFlowIds, ignoredFlowDates } = normalizeFlowLogs(flowLogs)
-
-  if (normalizedFlowLogs.length === 0) {
-    if (persist) {
-      await clearComputedCycleData(userId)
+  try {
+    console.log(`[CycleRecalc] Starting cycle recomputation for user ${userId}`)
+    
+    let allLogs
+    try {
+      allLogs = await prisma.dailyLog.findMany({
+        where: { userId },
+        orderBy: { date: 'asc' },
+        select: {
+          id: true,
+          date: true,
+          flow: true,
+          spotting: true,
+        },
+      })
+      console.log(`[CycleRecalc] Fetched ${allLogs.length} logs for user ${userId}`)
+    } catch (logError) {
+      console.error(`[CycleRecalc] Error fetching logs:`, logError)
+      throw logError
     }
 
-    return {
-      hasCycleData: false,
-      hasAnyLogs,
-      lastPeriodDate: null,
-      cycleLength: clampCycleLength(user?.cycleLength ?? DEFAULT_CYCLE_LENGTH),
-      cycleStarts: [],
-      prediction: null,
-      ignoredFlowDates,
-    }
-  }
-
-  const starts = detectCycleStarts(
-    normalizedFlowLogs.map((log) => ({
-      date: log.date,
-      flow: log.flow,
-      spotting: log.spotting,
-    }))
-  )
-
-  if (starts.length === 0) {
-    if (persist) {
-      await clearComputedCycleData(userId)
+    let user
+    try {
+      user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { cycleLength: true },
+      })
+      if (!user) {
+        console.warn(`[CycleRecalc] User not found: ${userId}`)
+      }
+    } catch (userError) {
+      console.error(`[CycleRecalc] Error fetching user:`, userError)
+      throw userError
     }
 
-    return {
-      hasCycleData: false,
-      hasAnyLogs,
-      lastPeriodDate: null,
-      cycleLength: clampCycleLength(user?.cycleLength ?? DEFAULT_CYCLE_LENGTH),
-      cycleStarts: [],
-      prediction: null,
-      ignoredFlowDates,
+    const hasAnyLogs = allLogs.length > 0
+    const flowLogs = allLogs.filter((log) => !!log.flow)
+    const { normalizedFlowLogs, ignoredFlowIds, ignoredFlowDates } = normalizeFlowLogs(flowLogs)
+
+    const fallbackFlowLogs =
+      normalizedFlowLogs.length === 0 && allLogs.length > 0
+        ? [
+            {
+              id: allLogs[allLogs.length - 1].id,
+              date: allLogs[allLogs.length - 1].date,
+              flow: 'light',
+              spotting: allLogs[allLogs.length - 1].spotting,
+            },
+          ]
+        : []
+
+    const effectiveFlowLogs =
+      normalizedFlowLogs.length > 0 ? normalizedFlowLogs : fallbackFlowLogs
+
+    if (effectiveFlowLogs.length === 0) {
+      if (persist) {
+        await clearComputedCycleData(userId)
+      }
+
+      return {
+        hasCycleData: false,
+        hasAnyLogs,
+        lastPeriodDate: null,
+        cycleLength: clampCycleLength(user?.cycleLength ?? DEFAULT_CYCLE_LENGTH),
+        cycleStarts: [],
+        prediction: null,
+        ignoredFlowDates,
+      }
     }
-  }
 
-  const cycleRecords = buildCycleRecords(
-    starts,
-    normalizedFlowLogs.map((log) => ({
-      date: log.date,
-      flow: log.flow,
-      spotting: log.spotting,
-    }))
-  )
+    const starts = detectCycleStarts(
+      normalizedFlowLogs.map((log) => ({
+        date: log.date,
+        flow: log.flow,
+        spotting: log.spotting,
+      }))
+    )
 
-  const weightedAverage = clampCycleLength(weightedAverageCycleLength(cycleRecords))
-  const aiCycleLength = await estimateCycleLengthWithAI(cycleRecords, weightedAverage)
+    if (starts.length === 0) {
+      if (persist) {
+        await clearComputedCycleData(userId)
+      }
 
-  const cycleLength = clampCycleLength(aiCycleLength.cycleLength)
-  const lastStart = starts[starts.length - 1]
-  const predictionBase = predictNextCycle(lastStart, cycleLength, cycleRecords.length)
-  const prediction = {
-    predictedPeriodDate: toYmd(predictionBase.predictedPeriodDate),
-    ovulationDate: toYmd(predictionBase.ovulationDate),
-    fertileWindowStart: toYmd(predictionBase.fertileWindowStart),
-    fertileWindowEnd: toYmd(predictionBase.fertileWindowEnd),
-    confidence: predictionBase.confidence,
-    method: aiCycleLength.method,
-  }
+      return {
+        hasCycleData: false,
+        hasAnyLogs,
+        lastPeriodDate: null,
+        cycleLength: clampCycleLength(user?.cycleLength ?? DEFAULT_CYCLE_LENGTH),
+        cycleStarts: [],
+        prediction: null,
+        ignoredFlowDates,
+      }
+    }
+
+    const cycleRecords = buildCycleRecords(
+      starts,
+      normalizedFlowLogs.map((log) => ({
+        date: log.date,
+        flow: log.flow,
+        spotting: log.spotting,
+      }))
+    )
+
+    const weightedAverage = clampCycleLength(weightedAverageCycleLength(cycleRecords))
+    const aiCycleLength = await estimateCycleLengthWithAI(cycleRecords, weightedAverage)
+
+    const cycleLength = clampCycleLength(aiCycleLength.cycleLength)
+    const lastStart = starts[starts.length - 1]
+    const predictionBase = predictNextCycle(lastStart, cycleLength, cycleRecords.length)
+    const prediction = {
+      predictedPeriodDate: toYmd(predictionBase.predictedPeriodDate),
+      ovulationDate: toYmd(predictionBase.ovulationDate),
+      fertileWindowStart: toYmd(predictionBase.fertileWindowStart),
+      fertileWindowEnd: toYmd(predictionBase.fertileWindowEnd),
+      confidence: predictionBase.confidence,
+      method: aiCycleLength.method,
+    }
+
+    console.log(`[CycleRecalc] Computation successful for user ${userId}:`, {
+      cycleStarts: starts.length,
+      cycleLength,
+      hasCycleData: true,
+    })
 
   if (persist) {
-    await prisma.$transaction(async (tx) => {
-      await tx.cycle.deleteMany({ where: { userId } })
+    try {
+      console.log(`[CycleRecalc] Persisting cycle data for user ${userId}`)
+      await prisma.$transaction(async (tx) => {
+        await tx.cycle.deleteMany({ where: { userId } })
 
-      for (const record of cycleRecords) {
-        await tx.cycle.create({
+        for (const record of cycleRecords) {
+          await tx.cycle.create({
+            data: {
+              userId,
+              startDate: toDayStart(record.startDate),
+              endDate: record.endDate ? toDayStart(record.endDate) : null,
+              length: record.length ?? null,
+              periodLength: record.periodLength ?? null,
+            },
+          })
+        }
+
+        await tx.prediction.deleteMany({ where: { userId } })
+        await tx.prediction.create({
           data: {
             userId,
-            startDate: toDayStart(record.startDate),
-            endDate: record.endDate ? toDayStart(record.endDate) : null,
-            length: record.length ?? null,
-            periodLength: record.periodLength ?? null,
+            predictedPeriodDate: new Date(`${prediction.predictedPeriodDate}T00:00:00`),
+            ovulationDate: new Date(`${prediction.ovulationDate}T00:00:00`),
+            fertileWindowStart: new Date(`${prediction.fertileWindowStart}T00:00:00`),
+            fertileWindowEnd: new Date(`${prediction.fertileWindowEnd}T00:00:00`),
+            confidence: prediction.confidence,
+            method: prediction.method,
           },
         })
-      }
 
-      await tx.prediction.deleteMany({ where: { userId } })
-      await tx.prediction.create({
-        data: {
-          userId,
-          predictedPeriodDate: new Date(`${prediction.predictedPeriodDate}T00:00:00`),
-          ovulationDate: new Date(`${prediction.ovulationDate}T00:00:00`),
-          fertileWindowStart: new Date(`${prediction.fertileWindowStart}T00:00:00`),
-          fertileWindowEnd: new Date(`${prediction.fertileWindowEnd}T00:00:00`),
-          confidence: prediction.confidence,
-          method: prediction.method,
-        },
-      })
-
-      await tx.cycleEntry.create({
-        data: {
-          userId,
-          lastPeriodDate: toDayStart(lastStart),
-          cycleLength,
-        },
-      })
-
-      await tx.user.update({
-        where: { id: userId },
-        data: {
-          cycleLength,
-          periodDuration: MAX_PERIOD_LENGTH_DAYS,
-        },
-      })
-
-      if (ignoredFlowIds.length > 0) {
-        await tx.dailyLog.updateMany({
-          where: { id: { in: ignoredFlowIds } },
-          data: { flow: null },
+        await tx.cycleEntry.create({
+          data: {
+            userId,
+            lastPeriodDate: toDayStart(lastStart),
+            cycleLength,
+          },
         })
-      }
-    })
+
+        await tx.user.update({
+          where: { id: userId },
+          data: {
+            cycleLength,
+            periodDuration: averagePeriodLength(cycleRecords),
+          },
+        })
+
+        if (ignoredFlowIds.length > 0) {
+          await tx.dailyLog.updateMany({
+            where: { id: { in: ignoredFlowIds } },
+            data: { flow: null },
+          })
+        }
+      })
+      console.log(`[CycleRecalc] Cycle data persisted successfully for user ${userId}`)
+    } catch (persistError) {
+      console.error(`[CycleRecalc] Error persisting cycle data for user ${userId}:`, persistError)
+      throw persistError
+    }
   }
 
   return {
@@ -246,6 +294,10 @@ export async function recomputeCycleForUser(
     cycleStarts: starts.map(toYmd),
     prediction,
     ignoredFlowDates,
+  }
+  } catch (error) {
+    console.error(`[CycleRecalc] CRITICAL ERROR in recomputeCycleForUser for ${userId}:`, error)
+    throw error
   }
 }
 

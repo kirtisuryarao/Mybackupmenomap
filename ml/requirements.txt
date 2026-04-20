@@ -3,6 +3,9 @@
 # Currently uses Random Forest as baseline
 # Designed to be easily replaceable with more advanced models
 
+fastapi>=0.111.0
+uvicorn>=0.30.0
+pydantic>=2.8.0
 scikit-learn>=1.3.0
 numpy>=1.24.0
 pandas>=2.0.0

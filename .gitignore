@@ -10,3 +10,5 @@ node_modules/
 .env
 .DS_Store
 /lib/generated/prisma
+__pycache__/
+.data/

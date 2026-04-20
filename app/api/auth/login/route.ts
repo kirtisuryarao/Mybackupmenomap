@@ -51,11 +51,6 @@ export async function POST(request: NextRequest) {
         email: user.email,
       })
 
-      // Reset chat session on every successful login.
-      await prisma.chatMessage.deleteMany({
-        where: { userId: user.id },
-      })
-
       // Store refresh token in database
       await prisma.refreshToken.create({
         data: {

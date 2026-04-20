@@ -18,7 +18,8 @@ export interface DayInfo {
  */
 export function calculateDayOfCycle(lastPeriodDate: Date, currentDate: Date, cycleLength: number): number {
   const diff = Math.floor((currentDate.getTime() - lastPeriodDate.getTime()) / (1000 * 60 * 60 * 24))
-  return (diff % cycleLength) + 1
+  // Handle negative diff (currentDate before lastPeriodDate) by using modular arithmetic
+  return ((diff % cycleLength) + cycleLength) % cycleLength + 1
 }
 
 /**

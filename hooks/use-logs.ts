@@ -30,13 +30,17 @@ export function useLogs(): UseLogsReturn {
 
   const refreshLogs = useCallback(async () => {
     try {
+      console.log('[useLogs] Refreshing logs...')
       const response = await authenticatedFetch('/api/logs?limit=365')
       if (response.ok) {
         const data = await response.json()
+        console.log('[useLogs] Logs fetched:', { count: data.logs?.length || 0, logs: data.logs?.slice(0, 3) })
         setLogs(data.logs || [])
+      } else {
+        console.error('[useLogs] Failed to fetch logs:', response.status)
       }
     } catch (error) {
-      console.error('Failed to load logs:', error)
+      console.error('[useLogs] Error fetching logs:', error)
     } finally {
       setIsLoading(false)
     }

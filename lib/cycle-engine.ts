@@ -43,6 +43,21 @@ export interface DailyLogEntry {
 }
 
 /**
+ * Normalize a Date to local midnight, removing time-of-day.
+ */
+function toMidnight(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate())
+}
+
+/**
+ * Safe day-difference: normalizes both dates to local midnight
+ * and rounds to avoid DST/timezone off-by-one errors.
+ */
+export function safeDayDiff(a: Date, b: Date): number {
+  return Math.round((toMidnight(b).getTime() - toMidnight(a).getTime()) / 86400000)
+}
+
+/**
  * Detect cycle starts from daily logs.
  * A cycle start = first day of period flow after a non-period gap.
  * Returns array of start dates sorted ascending.
@@ -58,9 +73,7 @@ export function detectCycleStarts(logs: DailyLogEntry[]): Date[] {
   const starts: Date[] = [sorted[0].date]
   
   for (let i = 1; i < sorted.length; i++) {
-    const daysDiff = Math.floor(
-      (sorted[i].date.getTime() - sorted[i - 1].date.getTime()) / (1000 * 60 * 60 * 24)
-    )
+    const daysDiff = safeDayDiff(sorted[i - 1].date, sorted[i].date)
     
     // If gap > 2 days between flow entries, it's a new cycle start
     if (daysDiff > 2) {
@@ -91,31 +104,31 @@ export function buildCycleRecords(
     let endDate: Date | null = null
 
     if (nextStart) {
-      length = Math.floor(
-        (nextStart.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
-      )
+      length = safeDayDiff(startDate, nextStart)
       endDate = new Date(nextStart)
       endDate.setDate(endDate.getDate() - 1)
     }
 
-    // Calculate period length (consecutive days of flow from start)
+    // Calculate period length (consecutive days of flow from start, bounded to this cycle)
     const flowLogs = logs
-      .filter(l => l.flow && l.flow !== '' && l.date >= startDate)
+      .filter(l => l.flow && l.flow !== '' && l.date >= startDate && (!nextStart || l.date < nextStart))
       .sort((a, b) => a.date.getTime() - b.date.getTime())
 
     let periodLength = 0
     if (flowLogs.length > 0) {
-      periodLength = 1
+      // Count actual flow days in the consecutive run (allowing 1-day gaps)
+      let consecutiveCount = 1
       for (let j = 1; j < flowLogs.length; j++) {
-        const diff = Math.floor(
-          (flowLogs[j].date.getTime() - flowLogs[j - 1].date.getTime()) / (1000 * 60 * 60 * 24)
-        )
-        if (diff <= 2) { // Allow 1 day gap in period
-          periodLength++
+        const diff = safeDayDiff(flowLogs[j - 1].date, flowLogs[j].date)
+        if (diff <= 2) { // Allow 1-day gap within a period
+          consecutiveCount++
         } else {
           break
         }
       }
+      // Period length = span from first to last consecutive flow day
+      const lastIdx = Math.min(consecutiveCount - 1, flowLogs.length - 1)
+      periodLength = safeDayDiff(flowLogs[0].date, flowLogs[lastIdx].date) + 1
     }
 
     cycles.push({
@@ -280,6 +293,56 @@ function standardDeviation(values: number[]): number {
   const squaredDiffs = values.map(v => Math.pow(v - mean, 2))
   const avgSquaredDiff = squaredDiffs.reduce((s, v) => s + v, 0) / (values.length - 1)
   return Math.sqrt(avgSquaredDiff)
+}
+
+/**
+ * Compute period lengths directly from DailyLog flow entries.
+ * Groups consecutive flow days (allowing 1-day gaps) into periods.
+ *
+ * Example:
+ *   Logs: Jan 1 (heavy), Jan 2 (medium), Jan 3 (light), Jan 10 (heavy), Jan 11 (medium)
+ *   → Period 1 = 3 days, Period 2 = 2 days
+ *   → { periodLengths: [3, 2], avgPeriodLength: 2.5 }
+ */
+export function computePeriodLengthsFromLogs(
+  logs: { date: Date; flow: string | null }[]
+): { periodLengths: number[]; avgPeriodLength: number } {
+  // Filter to only flow days and sort ascending
+  const flowDays = logs
+    .filter(l => l.flow !== null && l.flow !== '')
+    .map(l => toMidnight(l.date))
+    .sort((a, b) => a.getTime() - b.getTime())
+
+  if (flowDays.length === 0) {
+    return { periodLengths: [], avgPeriodLength: 0 }
+  }
+
+  // Group consecutive days (allowing 1-day gaps) into period clusters
+  const periods: Date[][] = [[flowDays[0]]]
+
+  for (let i = 1; i < flowDays.length; i++) {
+    const diff = safeDayDiff(flowDays[i - 1], flowDays[i])
+    if (diff <= 2) {
+      // Same period (consecutive or 1-day gap)
+      periods[periods.length - 1].push(flowDays[i])
+    } else {
+      // New period
+      periods.push([flowDays[i]])
+    }
+  }
+
+  // Calculate length of each period (span from first to last day + 1)
+  const periodLengths = periods.map(group => {
+    const first = group[0]
+    const last = group[group.length - 1]
+    return safeDayDiff(first, last) + 1
+  })
+
+  const avgPeriodLength = periodLengths.length > 0
+    ? Math.round((periodLengths.reduce((s, l) => s + l, 0) / periodLengths.length) * 10) / 10
+    : 0
+
+  return { periodLengths, avgPeriodLength }
 }
 
 /**

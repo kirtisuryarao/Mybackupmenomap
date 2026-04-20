@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { authenticateRequest } from '@/lib/middleware'
 import { createInternalErrorResponse } from '@/lib/api-error'
 import { getDayInfo } from '@/lib/cycle-calculations'
+import { getCycleData } from '@/lib/get-cycle-data'
 
 const sendMessageSchema = z.object({
   message: z.string().min(1).max(5000),
@@ -179,34 +180,59 @@ interface CycleContext {
 }
 
 async function getUserCycleContext(userId: string): Promise<CycleContext> {
-  const [entry, log] = await Promise.all([
-    prisma.cycleEntry.findFirst({
-      where: { userId },
-      orderBy: { createdAt: 'desc' },
-      select: { lastPeriodDate: true, cycleLength: true },
-    }),
-    prisma.dailyLog.findFirst({
-      where: { userId },
-      orderBy: { date: 'desc' },
-      select: { symptoms: true },
-    }),
-  ])
+  try {
+    // Use shared utility to get fresh cycle data - SAME SOURCE AS CALENDAR
+    const cycleData = await getCycleData(userId)
+    const [log] = await Promise.all([
+      prisma.dailyLog.findFirst({
+        where: { userId },
+        orderBy: { date: 'desc' },
+        select: { symptoms: true },
+      }),
+    ])
 
-  if (!entry) {
-    return { cycleDay: null, phase: null, cycleLength: null, lastPeriodDate: null, nextPeriodDate: null, symptoms: log?.symptoms ?? [] }
-  }
+    if (!cycleData.hasCycleData) {
+      console.log(`[Chat] User ${userId}: No cycle data available`)
+      return {
+        cycleDay: null,
+        phase: null,
+        cycleLength: null,
+        lastPeriodDate: null,
+        nextPeriodDate: null,
+        symptoms: log?.symptoms ?? [],
+      }
+    }
 
-  const lastPeriod = new Date(entry.lastPeriodDate.getFullYear(), entry.lastPeriodDate.getMonth(), entry.lastPeriodDate.getDate())
-  const info = getDayInfo(new Date(), lastPeriod, entry.cycleLength)
-  const nextPeriod = getNextPeriodDate(lastPeriod, entry.cycleLength)
+    // Calculate current cycle day and phase from the fresh data
+    const lastPeriod = new Date(cycleData.lastPeriodDate!)
+    const info = getDayInfo(new Date(), lastPeriod, cycleData.cycleLength)
+    const nextPeriod = getNextPeriodDate(lastPeriod, cycleData.cycleLength)
 
-  return {
-    cycleDay: info.dayOfCycle,
-    phase: info.phase,
-    cycleLength: entry.cycleLength,
-    lastPeriodDate: fmtDate(lastPeriod),
-    nextPeriodDate: fmtDate(nextPeriod),
-    symptoms: log?.symptoms ?? [],
+    console.log(`[Chat] User ${userId}: Cycle context built`, {
+      cycleDay: info.dayOfCycle,
+      phase: info.phase,
+      cycleLength: cycleData.cycleLength,
+      source: cycleData.source,
+    })
+
+    return {
+      cycleDay: info.dayOfCycle,
+      phase: info.phase,
+      cycleLength: cycleData.cycleLength,
+      lastPeriodDate: cycleData.lastPeriodDate,
+      nextPeriodDate: fmtDate(nextPeriod),
+      symptoms: log?.symptoms ?? [],
+    }
+  } catch (error) {
+    console.error(`[Chat] Error getting cycle context for user ${userId}:`, error)
+    return {
+      cycleDay: null,
+      phase: null,
+      cycleLength: null,
+      lastPeriodDate: null,
+      nextPeriodDate: null,
+      symptoms: [],
+    }
   }
 }
 

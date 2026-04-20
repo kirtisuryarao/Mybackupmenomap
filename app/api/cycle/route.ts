@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { authenticateRequest } from '@/lib/middleware'
 import { createInternalErrorResponse } from '@/lib/api-error'
+import { getCycleData } from '@/lib/get-cycle-data'
 import { recomputeCycleForUser } from '@/lib/cycle-recalculation'
 
 const updateCycleSchema = z.object({
@@ -18,62 +19,24 @@ export async function GET(request: NextRequest) {
     }
 
     const { user } = authResult
+    console.log(`[Cycle API GET] User ${user.userId}: Fetching cycle data`)
 
-    // First check if user has CycleEntry (set at signup or manually by user)
-    const cycleEntry = await prisma.cycleEntry.findFirst({
-      where: { userId: user.userId },
-      orderBy: { createdAt: 'desc' },
-      select: { lastPeriodDate: true, cycleLength: true },
-    })
-
-    // Try to get computed cycle from flow logs
-    const computed = await recomputeCycleForUser(user.userId, { persist: false })
-
-    // If we have flow logs, return computed data (more accurate)
-    if (computed.hasCycleData) {
-      return NextResponse.json({
-        hasCycleData: true,
-        lastPeriodDate: computed.lastPeriodDate,
-        cycleLength: computed.cycleLength,
-        cycleStarts: computed.cycleStarts,
-        prediction: computed.prediction,
-        ignoredFlowDates: computed.ignoredFlowDates,
-        source: 'computed_from_logs',
+    // Use shared utility - SINGLE SOURCE OF TRUTH for cycle data
+    try {
+      const cycleData = await getCycleData(user.userId)
+      console.log(`[Cycle API GET] User ${user.userId}: Successfully fetched cycle data`, {
+        hasCycleData: cycleData.hasCycleData,
+        source: cycleData.source,
       })
+      return NextResponse.json(cycleData)
+    } catch (getCycleError) {
+      console.error(`[Cycle API GET] Error in getCycleData for user ${user.userId}:`, getCycleError)
+      throw getCycleError
     }
-
-    // Fallback to CycleEntry (user-provided initial data from signup)
-    if (cycleEntry) {
-      const lastPeriodDate = formatToIso(cycleEntry.lastPeriodDate)
-      return NextResponse.json({
-        hasCycleData: true,
-        lastPeriodDate,
-        cycleLength: cycleEntry.cycleLength,
-        cycleStarts: [lastPeriodDate],
-        prediction: null,
-        source: 'user_provided',
-      })
-    }
-
-    // No data at all
-    return NextResponse.json({
-      hasCycleData: false,
-      lastPeriodDate: null,
-      cycleLength: 28,
-      cycleStarts: [],
-      prediction: null,
-      source: 'default',
-    })
   } catch (error) {
+    console.error(`[Cycle API GET] Unhandled error:`, error)
     return createInternalErrorResponse(error, 'Get cycle error', 'Failed to get cycle data')
   }
-}
-
-function formatToIso(date: Date): string {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
 }
 
 export async function POST(request: NextRequest) {
@@ -89,6 +52,11 @@ export async function POST(request: NextRequest) {
 
     const lastPeriodDate = new Date(`${validatedData.lastPeriodDate}T00:00:00`)
 
+    console.log(`[Cycle API] User ${user.userId}: Creating/updating cycle entry`, {
+      lastPeriodDate: validatedData.lastPeriodDate,
+      cycleLength: validatedData.cycleLength,
+    })
+
     await prisma.cycleEntry.create({
       data: {
         userId: user.userId,
@@ -102,19 +70,21 @@ export async function POST(request: NextRequest) {
       data: { cycleLength: validatedData.cycleLength },
     })
 
-    const computed = await recomputeCycleForUser(user.userId, { persist: true })
+    await recomputeCycleForUser(user.userId, { persist: true })
 
-    return NextResponse.json(
-      {
-        hasCycleData: computed.hasCycleData,
-        lastPeriodDate: computed.lastPeriodDate,
-        cycleLength: computed.cycleLength,
-        prediction: computed.prediction,
-      },
-      { status: 201 }
-    )
+    const cycleData = await getCycleData(user.userId)
+
+    console.log(`[Cycle API] User ${user.userId}: Cycle entry saved and returned cycle data`, {
+      hasCycleData: cycleData.hasCycleData,
+      lastPeriodDate: cycleData.lastPeriodDate,
+      cycleLength: cycleData.cycleLength,
+      source: cycleData.source,
+    })
+
+    return NextResponse.json(cycleData, { status: 201 })
   } catch (error) {
     if (error instanceof z.ZodError) {
+      console.error(`[Cycle API] Validation error:`, error.errors)
       return NextResponse.json(
         { error: 'Validation error', details: error.errors },
         { status: 400 }

@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { authenticateRequest } from '@/lib/middleware'
 import { createInternalErrorResponse } from '@/lib/api-error'
-import { computeAnalytics } from '@/lib/cycle-engine'
+import { computeAnalytics, computePeriodLengthsFromLogs } from '@/lib/cycle-engine'
+import { getCyclePhase } from '@/lib/cycle-calculations'
 
 /**
  * GET /api/analytics - Get cycle statistics, trends, and analytics
@@ -29,6 +30,25 @@ export async function GET(request: NextRequest) {
 
     const analytics = computeAnalytics(cycleRecords)
 
+    // Also compute period lengths directly from DailyLog flow entries
+    // This is more accurate than relying solely on pre-computed Cycle records
+    const allFlowLogs = await prisma.dailyLog.findMany({
+      where: {
+        userId: user.userId,
+        flow: { not: null },
+      },
+      orderBy: { date: 'asc' },
+      select: { date: true, flow: true },
+    })
+
+    const logBasedPeriods = computePeriodLengthsFromLogs(allFlowLogs)
+
+    // Use log-based period data when it's more complete than cycle-table data
+    if (logBasedPeriods.periodLengths.length > 0) {
+      analytics.periodLengths = logBasedPeriods.periodLengths
+      analytics.avgPeriodLength = Math.round(logBasedPeriods.avgPeriodLength)
+    }
+
     // Get mood trends (last 30 days)
     const thirtyDaysAgo = new Date()
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
@@ -54,6 +74,23 @@ export async function GET(request: NextRequest) {
     const symptomCounts: Record<string, number> = {}
     const temperatures: { date: string; temperature: number }[] = []
 
+    // Symptom-phase correlation: which symptoms appear most in each phase
+    const phaseSymptoms: Record<string, Record<string, number>> = {
+      period: {},
+      follicular: {},
+      ovulation: {},
+      luteal: {},
+    }
+    const phaseMoods: Record<string, Record<string, number>> = {
+      period: {},
+      follicular: {},
+      ovulation: {},
+      luteal: {},
+    }
+
+    // Sort cycles by startDate for phase calculation
+    const sortedCycles = [...cycles].sort((a, b) => a.startDate.getTime() - b.startDate.getTime())
+
     for (const log of recentLogs) {
       for (const m of log.mood) {
         moodCounts[m] = (moodCounts[m] || 0) + 1
@@ -66,6 +103,28 @@ export async function GET(request: NextRequest) {
           date: log.date.toISOString().split('T')[0],
           temperature: log.temperature,
         })
+      }
+
+      // Calculate phase for this log date to build correlation
+      if (sortedCycles.length > 0) {
+        let refDate = sortedCycles[0].startDate
+        for (const c of sortedCycles) {
+          if (c.startDate <= log.date) refDate = c.startDate
+          else break
+        }
+        const dayDiff = Math.floor(
+          (log.date.getTime() - refDate.getTime()) / (1000 * 60 * 60 * 24)
+        )
+        const avgLen = analytics.avgCycleLength || 28
+        const dayOfCycle = ((dayDiff % avgLen) + avgLen) % avgLen + 1
+        const phase = getCyclePhase(dayOfCycle, avgLen)
+
+        for (const s of log.symptoms) {
+          phaseSymptoms[phase][s] = (phaseSymptoms[phase][s] || 0) + 1
+        }
+        for (const m of log.mood) {
+          phaseMoods[phase][m] = (phaseMoods[phase][m] || 0) + 1
+        }
       }
     }
 
@@ -80,6 +139,8 @@ export async function GET(request: NextRequest) {
       symptomTrends: symptomCounts,
       temperatureTrends: temperatures,
       totalLogsRecorded: totalLogs,
+      phaseSymptomCorrelation: phaseSymptoms,
+      phaseMoodCorrelation: phaseMoods,
       recentLogs: recentLogs.map(l => ({
         date: l.date.toISOString().split('T')[0],
         mood: l.mood,

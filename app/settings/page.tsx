@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { LayoutWrapper } from '@/components/layout-wrapper'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -9,7 +9,8 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { useCycleData } from '@/hooks/use-cycle-data'
 import { formatDate, parseDate } from '@/lib/cycle-calculations'
-import { Settings, Bell, Eye, Lock, LogOut } from 'lucide-react'
+import { authenticatedFetch } from '@/lib/auth-client'
+import { Settings, Bell, Eye, Lock, LogOut, Download, Trash2 } from 'lucide-react'
 import { logout } from '@/lib/auth-client'
 
 export default function SettingsPage() {
@@ -31,34 +32,131 @@ export default function SettingsPage() {
     allowHealthInsight: true,
   })
   const [saveMessage, setSaveMessage] = useState('')
+  const [settingsLoaded, setSettingsLoaded] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState<'data' | 'account' | null>(null)
+
+  // Load settings from server on mount
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        const res = await authenticatedFetch('/api/settings')
+        if (res.ok) {
+          const data = await res.json()
+          if (data.notifications) setNotifications(data.notifications)
+          if (data.privacy) setPrivacy(data.privacy)
+        }
+      } catch (error) {
+        console.error('Failed to load settings:', error)
+      } finally {
+        setSettingsLoaded(true)
+      }
+    }
+    loadSettings()
+  }, [])
 
   useEffect(() => {
-    if (cycleData) {
+    if (cycleData && cycleData.lastPeriodDate) {
       setEditData({
         lastPeriodDate: cycleData.lastPeriodDate,
-        cycleLength: cycleData.cycleLength.toString(),
+        cycleLength: cycleData.cycleLength?.toString() || '28',
       })
     }
   }, [cycleData])
 
-  const handleUpdateCycle = () => {
+  const handleUpdateCycle = async () => {
     if (editData.lastPeriodDate && editData.cycleLength) {
       const cycleLength = parseInt(editData.cycleLength)
       if (cycleLength >= 20 && cycleLength <= 40) {
-        updateCycleData(editData.lastPeriodDate, cycleLength)
-        setIsEditing(false)
-        setSaveMessage('Cycle information updated successfully!')
-        setTimeout(() => setSaveMessage(''), 3000)
+        console.log('[Settings] Updating cycle with:', { 
+          lastPeriodDate: editData.lastPeriodDate, 
+          cycleLength 
+        })
+        try {
+          await updateCycleData(editData.lastPeriodDate, cycleLength)
+          console.log('[Settings] Cycle update completed')
+          setIsEditing(false)
+          setSaveMessage('Cycle information updated successfully!')
+          // Wait a moment for all listeners to update
+          setTimeout(() => setSaveMessage(''), 3000)
+        } catch (error) {
+          console.error('[Settings] Failed to update cycle:', error)
+          setSaveMessage('Failed to update cycle information. Please try again.')
+          setTimeout(() => setSaveMessage(''), 3000)
+        }
       }
     }
   }
 
-  const handleNotificationChange = (key: keyof typeof notifications) => {
-    setNotifications((prev) => ({ ...prev, [key]: !prev[key] }))
+  const handleNotificationChange = async (key: keyof typeof notifications) => {
+    const updated = { ...notifications, [key]: !notifications[key] }
+    setNotifications(updated)
+    try {
+      await authenticatedFetch('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notifications: updated }),
+      })
+    } catch (error) {
+      console.error('Failed to save notification setting:', error)
+      // Revert on failure
+      setNotifications(notifications)
+    }
   }
 
-  const handlePrivacyChange = (key: keyof typeof privacy) => {
-    setPrivacy((prev) => ({ ...prev, [key]: !prev[key] }))
+  const handlePrivacyChange = async (key: keyof typeof privacy) => {
+    const updated = { ...privacy, [key]: !privacy[key] }
+    setPrivacy(updated)
+    try {
+      await authenticatedFetch('/api/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ privacy: updated }),
+      })
+    } catch (error) {
+      console.error('Failed to save privacy setting:', error)
+      // Revert on failure
+      setPrivacy(privacy)
+    }
+  }
+
+  const handleExportData = async () => {
+    try {
+      const response = await authenticatedFetch('/api/export?type=all')
+      if (response.ok) {
+        const blob = await response.blob()
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `menomap-export-${new Date().toISOString().split('T')[0]}.csv`
+        a.click()
+        URL.revokeObjectURL(url)
+        setSaveMessage('Data exported successfully!')
+        setTimeout(() => setSaveMessage(''), 3000)
+      }
+    } catch (error) {
+      console.error('Export failed:', error)
+      setSaveMessage('Failed to export data.')
+      setTimeout(() => setSaveMessage(''), 3000)
+    }
+  }
+
+  const handleDeleteAllData = async () => {
+    if (confirmDelete !== 'data') {
+      setConfirmDelete('data')
+      return
+    }
+    try {
+      // Delete all logs, cycles, predictions - keeps account
+      await authenticatedFetch('/api/logs', { method: 'DELETE' })
+      setSaveMessage('All tracking data deleted.')
+      setConfirmDelete(null)
+      setTimeout(() => setSaveMessage(''), 3000)
+      window.dispatchEvent(new CustomEvent('menomap:logs-updated'))
+    } catch (error) {
+      console.error('Delete data failed:', error)
+      setSaveMessage('Failed to delete data.')
+      setTimeout(() => setSaveMessage(''), 3000)
+    }
   }
 
   const handleLogout = async () => {
@@ -109,21 +207,32 @@ export default function SettingsPage() {
           <CardContent className="space-y-4">
             {!isEditing ? (
               <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Last Period Date</p>
-                    <p className="font-semibold text-foreground">
-                      {new Date(cycleData.lastPeriodDate).toLocaleDateString()}
-                    </p>
+                {cycleData && cycleData.lastPeriodDate ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-1">Last Period Date</p>
+                        <p className="font-semibold text-foreground">
+                          {new Date(cycleData.lastPeriodDate).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-1">Cycle Length</p>
+                        <p className="font-semibold text-foreground">{cycleData.cycleLength} days</p>
+                      </div>
+                    </div>
+                    <Button onClick={() => setIsEditing(true)} variant="outline" className="w-full">
+                      Edit Cycle Information
+                    </Button>
+                  </>
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="text-muted-foreground mb-4">No cycle data loaded yet</p>
+                    <Button onClick={() => setIsEditing(true)} variant="outline" className="w-full">
+                      Add Cycle Information
+                    </Button>
                   </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Cycle Length</p>
-                    <p className="font-semibold text-foreground">{cycleData.cycleLength} days</p>
-                  </div>
-                </div>
-                <Button onClick={() => setIsEditing(true)} variant="outline" className="w-full">
-                  Edit Cycle Information
-                </Button>
+                )}
               </div>
             ) : (
               <div className="space-y-4">
@@ -290,10 +399,8 @@ export default function SettingsPage() {
             <div>
               <p className="font-medium mb-4">Account Actions</p>
               <div className="space-y-2">
-                <Button variant="outline" className="w-full">
-                  Change Password
-                </Button>
-                <Button variant="outline" className="w-full">
+                <Button variant="outline" className="w-full" onClick={handleExportData}>
+                  <Download className="h-4 w-4 mr-2" />
                   Download My Data
                 </Button>
                 <Button
@@ -320,13 +427,20 @@ export default function SettingsPage() {
                 These actions cannot be undone. Please proceed with caution.
               </p>
               <div className="grid grid-cols-1 gap-2">
-                <Button variant="outline" className="text-destructive hover:text-destructive">
-                  Delete All Data
-                </Button>
-                <Button variant="destructive">
-                  Delete Account
+                <Button
+                  variant="outline"
+                  className="text-destructive hover:text-destructive"
+                  onClick={handleDeleteAllData}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  {confirmDelete === 'data' ? 'Click again to confirm deletion' : 'Delete All Data'}
                 </Button>
               </div>
+              {confirmDelete && (
+                <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(null)}>
+                  Cancel
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>

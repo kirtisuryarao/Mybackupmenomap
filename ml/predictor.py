@@ -29,13 +29,14 @@ Usage:
 import numpy as np
 import joblib
 import os
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 from datetime import datetime, timedelta
 
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import cross_val_score
 
-from .features import CycleRecord, CycleFeatures, extract_features, prepare_training_data
+from features import CycleRecord, CycleFeatures, extract_features, prepare_training_data
+from kaggle_data_loader import kaggle_loader
 
 
 class CyclePredictor:
@@ -127,22 +128,16 @@ class CyclePredictor:
         last_period_start: Optional[datetime] = None,
     ) -> Dict:
         """
-        Predict next cycle for a specific user.
+        Predict next cycle for a specific user using hybrid approach.
+        
+        Combines user-specific data with population-level patterns from Kaggle data.
         
         Args:
             user_cycles: User's cycle history
             last_period_start: Start date of most recent period
-                             (defaults to last cycle's start_date)
         
         Returns:
-            Dict with:
-            - predicted_cycle_length: int
-            - predicted_period_date: datetime
-            - ovulation_date: datetime
-            - fertile_window_start: datetime
-            - fertile_window_end: datetime
-            - confidence: float (0-1)
-            - method: 'ml'
+            Dict with prediction results including confidence ranges
         """
         features = extract_features(user_cycles)
 
@@ -154,47 +149,92 @@ class CyclePredictor:
             else:
                 last_period_start = datetime.now()
 
-        if self.is_trained and self.model is not None:
-            # ML prediction
-            X = features.to_array()
-            predicted_length = int(round(self.model.predict(X)[0]))
-
-            # Confidence from prediction variance across trees
-            tree_predictions = np.array([
-                tree.predict(X)[0] for tree in self.model.estimators_
-            ])
-            prediction_std = np.std(tree_predictions)
-
-            # Confidence: lower std = higher confidence
-            # Normalize: std of 0 = confidence 1.0, std of 5+ = confidence ~0.3
-            confidence = max(0.3, min(0.95, 1.0 - (prediction_std / 10.0)))
-
-            method = 'ml'
-        else:
-            # Fallback: rule-based prediction using weighted average
-            predicted_length = self._rule_based_prediction(features)
-            confidence = min(0.8, 0.3 + (features.num_cycles * 0.08))
-            method = 'rule_based'
-
-        # Ensure reasonable bounds
-        predicted_length = max(21, min(45, predicted_length))
+        # Get user-specific prediction
+        user_prediction = self._get_user_specific_prediction(user_cycles, features)
+        
+        # Get population-level statistics
+        kaggle_stats = kaggle_loader.compute_population_stats()
+        
+        # Hybrid logic: prioritize user data, use Kaggle for confidence
+        final_prediction = self._compute_hybrid_prediction(
+            user_prediction, kaggle_stats, features
+        )
 
         # Calculate dates
-        predicted_period_date = last_period_start + timedelta(days=predicted_length)
-        ovulation_day = predicted_length - 14
+        predicted_period_date = last_period_start + timedelta(days=final_prediction['cycle_length'])
+        ovulation_day = final_prediction['cycle_length'] - 14
         ovulation_date = last_period_start + timedelta(days=ovulation_day)
         fertile_start = ovulation_date - timedelta(days=2)
         fertile_end = ovulation_date + timedelta(days=2)
 
         return {
-            'predicted_cycle_length': predicted_length,
+            'predicted_cycle_length': final_prediction['cycle_length'],
             'predicted_period_date': predicted_period_date,
             'ovulation_date': ovulation_date,
             'fertile_window_start': fertile_start,
             'fertile_window_end': fertile_end,
-            'confidence': float(confidence),
-            'method': method,
+            'confidence': final_prediction['confidence'],
+            'confidence_range_days': final_prediction['confidence_range_days'],
+            'method': final_prediction['method'],
+            'user_avg_cycle': user_prediction.get('user_avg', 28),
+            'user_variance': user_prediction.get('user_std', 3),
+            'population_avg': kaggle_stats['avg_cycle_length'],
+            'population_std': kaggle_stats['cycle_std'],
         }
+
+    def _predict_personalized(
+        self,
+        user_cycles: List[CycleRecord],
+        history_window: int = 3,
+    ) -> Optional[Tuple[int, float]]:
+        """
+        Train a lightweight per-user random forest from historical windows.
+
+        Example:
+        [27, 28, 29] -> target 28
+        [28, 29, 28] -> target 30
+
+        Returns None if the user doesn't have enough cycle history.
+        """
+        lengths = [c.length for c in user_cycles if c.length and 15 <= c.length <= 60]
+
+        if len(lengths) < history_window + 2:
+            return None
+
+        X, y = self._build_personalized_dataset(lengths, history_window)
+        if len(X) < 3:
+            return None
+
+        model = RandomForestRegressor(
+            n_estimators=200,
+            max_depth=6,
+            random_state=42,
+            n_jobs=-1,
+        )
+        model.fit(X, y)
+
+        latest_window = np.array(lengths[-history_window:]).reshape(1, -1)
+        prediction = int(round(model.predict(latest_window)[0]))
+
+        tree_predictions = np.array([tree.predict(latest_window)[0] for tree in model.estimators_])
+        prediction_std = np.std(tree_predictions)
+        confidence = max(0.35, min(0.95, 1.0 - (prediction_std / 10.0)))
+
+        return prediction, float(confidence)
+
+    def _build_personalized_dataset(
+        self,
+        lengths: List[int],
+        history_window: int,
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        X_rows: List[np.ndarray] = []
+        y_rows: List[int] = []
+
+        for index in range(history_window, len(lengths)):
+            X_rows.append(np.array(lengths[index - history_window:index], dtype=float))
+            y_rows.append(int(lengths[index]))
+
+        return np.array(X_rows), np.array(y_rows)
 
     def _rule_based_prediction(self, features: CycleFeatures) -> int:
         """
@@ -229,16 +269,116 @@ class CyclePredictor:
             print(f"Failed to load model: {e}")
             self.is_trained = False
 
-    def get_feature_importance(self) -> Optional[Dict[str, float]]:
-        """Get feature importance from trained model."""
-        if not self.is_trained or self.model is None:
-            return None
+    def _get_user_specific_prediction(
+        self,
+        user_cycles: List[CycleRecord],
+        features: CycleFeatures,
+    ) -> Dict:
+        """
+        Get user-specific prediction using existing ML logic.
+        
+        Returns:
+            Dict with user_avg, user_std, predicted_length, confidence, method
+        """
+        personalized = self._predict_personalized(user_cycles)
 
-        names = CycleFeatures([], 0, 0, 0, 0, None, None, 0, 0).feature_names()
-        importance = self.model.feature_importances_
+        if personalized is not None:
+            predicted_length, confidence = personalized
+            method = 'ml_personalized'
+        elif self.is_trained and self.model is not None:
+            # ML prediction from global model
+            X = features.to_array()
+            predicted_length = int(round(self.model.predict(X)[0]))
 
-        return dict(sorted(
-            zip(names, importance.tolist()),
-            key=lambda x: x[1],
-            reverse=True,
-        ))
+            # Confidence from prediction variance across trees
+            tree_predictions = np.array([
+                tree.predict(X)[0] for tree in self.model.estimators_
+            ])
+            prediction_std = np.std(tree_predictions)
+
+            # Confidence: lower std = higher confidence
+            confidence = max(0.3, min(0.95, 1.0 - (prediction_std / 10.0)))
+            method = 'ml'
+        else:
+            # Fallback: statistical weighted-average prediction
+            predicted_length = self._rule_based_prediction(features)
+            confidence = min(0.8, 0.3 + (features.num_cycles * 0.08))
+            method = 'rule_based'
+
+        # Ensure reasonable bounds
+        predicted_length = max(21, min(45, predicted_length))
+
+        return {
+            'user_avg': features.cycle_length_mean,
+            'user_std': features.cycle_length_std,
+            'predicted_length': predicted_length,
+            'confidence': confidence,
+            'method': method,
+        }
+
+    def _compute_hybrid_prediction(
+        self,
+        user_prediction: Dict,
+        kaggle_stats: Dict,
+        features: CycleFeatures,
+    ) -> Dict:
+        """
+        Compute hybrid prediction combining user data with population patterns.
+        
+        Prioritizes user-specific data but uses Kaggle data for:
+        - Confidence ranges when user has limited data
+        - General patterns for users with very irregular cycles
+        - Validation of predictions against population norms
+        
+        Args:
+            user_prediction: User-specific prediction results
+            kaggle_stats: Population statistics from Kaggle data
+            features: User's cycle features
+        
+        Returns:
+            Dict with final prediction, confidence, and range
+        """
+        user_avg = user_prediction['user_avg']
+        user_std = user_prediction['user_std']
+        user_predicted = user_prediction['predicted_length']
+        user_confidence = user_prediction['confidence']
+        method = user_prediction['method']
+
+        population_avg = kaggle_stats['avg_cycle_length']
+        population_std = kaggle_stats['cycle_std']
+
+        # Base prediction: always use user data
+        final_cycle_length = user_predicted
+
+        # Confidence range: max of user variance and population variance
+        # This ensures we don't underestimate uncertainty
+        user_variance = user_std if user_std > 0 else population_std
+        final_variance = max(user_variance, population_std * 0.8)  # Slightly conservative
+
+        # Adjust confidence based on data quality
+        data_quality_factor = min(1.0, features.num_cycles / 6.0)  # More cycles = higher confidence
+        regularity_factor = max(0.5, 1.0 - (user_std / 10.0))  # More regular = higher confidence
+        
+        base_confidence = user_confidence * data_quality_factor * regularity_factor
+        
+        # If user has very limited data, be more conservative
+        if features.num_cycles < 3:
+            final_variance = max(final_variance, population_std)
+            base_confidence *= 0.7
+        
+        # If prediction deviates significantly from population norm, reduce confidence
+        deviation_from_norm = abs(user_predicted - population_avg) / population_std
+        if deviation_from_norm > 2.0:  # More than 2 standard deviations
+            base_confidence *= 0.8
+        
+        final_confidence = max(0.3, min(0.95, base_confidence))
+        
+        # Confidence range in days (±)
+        confidence_range_days = final_variance * 2  # Approximate 95% confidence interval
+
+        return {
+            'cycle_length': int(round(final_cycle_length)),
+            'confidence': float(final_confidence),
+            'confidence_range_days': float(confidence_range_days),
+            'method': f"hybrid_{method}",
+        }

@@ -28,18 +28,34 @@ interface Analytics {
   symptomTrends: Record<string, number>
   temperatureTrends: { date: string; temperature: number }[]
   totalLogsRecorded: number
+  phaseSymptomCorrelation?: Record<string, Record<string, number>>
+  phaseMoodCorrelation?: Record<string, Record<string, number>>
 }
 
 interface Prediction {
   predictedPeriodDate: string
+  predictedCycleLength: number
   ovulationDate: string
   fertileWindowStart: string
   fertileWindowEnd: string
   confidence: number
   method: string
+  explanation?: string
+  predictionRange?: {
+    earliest: string
+    latest: string
+    plusMinusDays: number
+  }
 }
 
 const CHART_COLORS = ['#0d9488', '#f43f5e', '#f59e0b', '#8b5cf6', '#3b82f6', '#ec4899', '#10b981', '#6366f1']
+
+function methodLabel(method: string) {
+  if (method === 'ml_personalized') return 'ML Personalized'
+  if (method === 'ml') return 'ML Model'
+  if (method === 'statistical') return 'Statistical'
+  return 'Rule-based'
+}
 
 export default function AnalyticsPage() {
   const [analytics, setAnalytics] = useState<Analytics | null>(null)
@@ -51,7 +67,7 @@ export default function AnalyticsPage() {
       try {
         const [analyticsRes, predictionRes] = await Promise.all([
           authenticatedFetch('/api/analytics'),
-          authenticatedFetch('/api/prediction'),
+          authenticatedFetch('/api/predict'),
         ])
 
         if (analyticsRes.ok) {
@@ -177,10 +193,36 @@ export default function AnalyticsPage() {
                     {Math.round(prediction.confidence * 100)}%
                   </p>
                   <Badge variant="outline" className="text-xs mt-1">
-                    {prediction.method === 'ml' ? 'ML Model' : 'Rule-based'}
+                    {methodLabel(prediction.method)}
                   </Badge>
                 </div>
               </div>
+
+              {prediction.predictionRange && (
+                <div className="mt-4 rounded-md border border-primary/20 bg-background/80 p-3">
+                  <p className="text-sm font-medium text-foreground">Expected range</p>
+                  <p className="text-sm text-muted-foreground">
+                    {new Date(prediction.predictionRange.earliest + 'T00:00:00').toLocaleDateString('en-US', {
+                      month: 'short', day: 'numeric',
+                    })}
+                    {' - '}
+                    {new Date(prediction.predictionRange.latest + 'T00:00:00').toLocaleDateString('en-US', {
+                      month: 'short', day: 'numeric',
+                    })}
+                    {' ('}
+                    +/-{prediction.predictionRange.plusMinusDays} days{')'}
+                  </p>
+                </div>
+              )}
+
+              {prediction.explanation && (
+                <div className="mt-3 rounded-md border border-primary/20 bg-background/80 p-3">
+                  <p className="text-sm font-medium text-foreground">AI explanation</p>
+                  <p className="text-sm text-muted-foreground whitespace-pre-line">
+                    {prediction.explanation}
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -229,8 +271,31 @@ export default function AnalyticsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold">{analytics?.avgPeriodLength || 5}</div>
-              <p className="text-xs text-muted-foreground">days average</p>
+              {analytics?.periodLengths && analytics.periodLengths.length > 1 ? (
+                <>
+                  <div className="text-3xl font-bold">{analytics.avgPeriodLength}</div>
+                  <p className="text-xs text-muted-foreground">
+                    days average ({analytics.periodLengths.length} periods)
+                  </p>
+                </>
+              ) : analytics?.periodLengths && analytics.periodLengths.length === 1 ? (
+                <>
+                  <div className="text-3xl font-bold">{analytics.periodLengths[0]}</div>
+                  <p className="text-xs text-muted-foreground">
+                    days (1 period tracked)
+                  </p>
+                </>
+              ) : analytics?.totalLogsRecorded === 0 ? (
+                <>
+                  <div className="text-lg font-semibold text-muted-foreground">—</div>
+                  <p className="text-xs text-muted-foreground">No data</p>
+                </>
+              ) : (
+                <>
+                  <div className="text-lg font-semibold text-muted-foreground">—</div>
+                  <p className="text-xs text-muted-foreground">Not enough data yet</p>
+                </>
+              )}
             </CardContent>
           </Card>
 
@@ -370,6 +435,65 @@ export default function AnalyticsPage() {
             </Card>
           )}
         </div>
+
+        {/* Phase-Symptom Correlation (Clue-level feature) */}
+        {analytics?.phaseSymptomCorrelation && Object.values(analytics.phaseSymptomCorrelation).some(p => Object.keys(p).length > 0) && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5" />
+                Symptom-Phase Correlation
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Which symptoms appear most often in each phase of your cycle
+              </p>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {(['period', 'follicular', 'ovulation', 'luteal'] as const).map(phase => {
+                  const phaseData = analytics.phaseSymptomCorrelation![phase]
+                  const entries = Object.entries(phaseData).sort((a, b) => b[1] - a[1]).slice(0, 5)
+                  if (entries.length === 0) return null
+                  const maxCount = entries[0][1]
+                  const phaseColors: Record<string, string> = {
+                    period: 'bg-red-400',
+                    follicular: 'bg-yellow-400',
+                    ovulation: 'bg-blue-400',
+                    luteal: 'bg-gray-400',
+                  }
+                  const phaseLabels: Record<string, string> = {
+                    period: 'Period',
+                    follicular: 'Follicular',
+                    ovulation: 'Ovulation',
+                    luteal: 'Luteal/PMS',
+                  }
+                  return (
+                    <div key={phase}>
+                      <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                        <div className={`h-3 w-3 rounded-full ${phaseColors[phase]}`} />
+                        {phaseLabels[phase]}
+                      </h4>
+                      <div className="space-y-2">
+                        {entries.map(([symptom, count]) => (
+                          <div key={symptom} className="flex items-center gap-2">
+                            <span className="text-xs text-muted-foreground w-24 truncate">{symptom}</span>
+                            <div className="flex-1 bg-muted rounded-full h-4 overflow-hidden">
+                              <div
+                                className={`h-full rounded-full ${phaseColors[phase]} opacity-70`}
+                                style={{ width: `${(count / maxCount) * 100}%` }}
+                              />
+                            </div>
+                            <span className="text-xs font-mono w-6 text-right">{count}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Empty State */}
         {(!analytics || analytics.totalCyclesTracked === 0) && (

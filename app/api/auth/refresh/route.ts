@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
       if (!storedToken || storedToken.expiresAt < new Date()) {
         // Clean up expired token
         if (storedToken) {
-          await prisma.refreshToken.delete({
+          await prisma.refreshToken.deleteMany({
             where: { id: storedToken.id },
           })
         }
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
 
       // Verify user still exists
       if (!storedToken.user) {
-        await prisma.refreshToken.delete({
+        await prisma.refreshToken.deleteMany({
           where: { id: storedToken.id },
         })
         return NextResponse.json(
@@ -69,8 +69,8 @@ export async function POST(request: NextRequest) {
         email: storedToken.user.email,
       })
 
-      // Delete old refresh token
-      await prisma.refreshToken.delete({
+      // Delete old refresh token (use deleteMany to avoid P2025 race condition)
+      await prisma.refreshToken.deleteMany({
         where: { id: storedToken.id },
       })
 

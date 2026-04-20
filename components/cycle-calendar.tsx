@@ -33,27 +33,12 @@ export function CycleCalendar({ onRefresh }: CycleCalendarProps) {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [isTrackModalOpen, setIsTrackModalOpen] = useState(false)
 
-  if (isLoading) {
+  if (isLoading || !cycleData) {
     return (
       <Card>
         <CardHeader>
           <CardTitle>Loading calendar...</CardTitle>
         </CardHeader>
-      </Card>
-    )
-  }
-
-  if (!cycleData) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Cycle Calendar</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            No period logs yet. Add your first period entry to generate dynamic cycle predictions.
-          </p>
-        </CardContent>
       </Card>
     )
   }
@@ -121,6 +106,7 @@ export function CycleCalendar({ onRefresh }: CycleCalendarProps) {
           </div>
         </CardHeader>
         <CardContent>
+          {/* Days of week header */}
           <div className="grid grid-cols-7 gap-2 mb-4">
             {DAYS_OF_WEEK.map((day) => (
               <div
@@ -132,11 +118,14 @@ export function CycleCalendar({ onRefresh }: CycleCalendarProps) {
             ))}
           </div>
 
+          {/* Calendar grid */}
           <div className="grid grid-cols-7 gap-2">
+            {/* Empty days before month starts */}
             {emptyDays.map((_, idx) => (
               <div key={`empty-${idx}`} className="aspect-square" />
             ))}
 
+            {/* Days of the month */}
             {monthDays.map((dayInfo, idx) => {
               const isToday =
                 dayInfo.date.toDateString() === new Date().toDateString()
@@ -147,9 +136,7 @@ export function CycleCalendar({ onRefresh }: CycleCalendarProps) {
                   key={idx}
                   onClick={() => handleDateClick(dayInfo.date)}
                   className={`aspect-square flex flex-col items-center justify-center rounded-lg p-1 transition-all cursor-pointer ${phaseColor} ${
-                    isToday
-                      ? 'ring-2 ring-primary shadow-md'
-                      : 'hover:ring-2 hover:ring-pink-400'
+                    isToday ? 'ring-2 ring-primary shadow-md' : 'hover:ring-2 hover:ring-pink-400'
                   }`}
                   title={`${PHASE_LABELS[dayInfo.phase]} - Day ${dayInfo.dayOfCycle}`}
                 >
@@ -162,6 +149,7 @@ export function CycleCalendar({ onRefresh }: CycleCalendarProps) {
             })}
           </div>
 
+          {/* Legend */}
           <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
             {(Object.entries(PHASE_LABELS) as Array<[CyclePhase, string]>).map(
               ([phase, label]) => (
@@ -177,12 +165,14 @@ export function CycleCalendar({ onRefresh }: CycleCalendarProps) {
             )}
           </div>
 
+          {/* Help text */}
           <p className="mt-6 text-center text-sm text-muted-foreground">
-            Click any date to log your health data
+            💡 Click any date to log your health data
           </p>
         </CardContent>
       </Card>
 
+      {/* Track Modal */}
       <TrackModal
         isOpen={isTrackModalOpen}
         onClose={() => setIsTrackModalOpen(false)}

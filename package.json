@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev --webpack",
     "dev:turbo": "next dev",
+    "ml:dev": "python -m uvicorn ml.api:app --host 0.0.0.0 --port 8001",
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "eslint .",
@@ -43,6 +44,7 @@
     "@radix-ui/react-tooltip": "1.2.8",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.103.2",
+    "@tailwindcss/typography": "^0.5.19",
     "@vercel/analytics": "1.6.1",
     "autoprefixer": "^10.4.20",
     "bcryptjs": "^2.4.3",
@@ -68,7 +70,8 @@
     "sonner": "^1.7.1",
     "tailwind-merge": "^3.3.1",
     "vaul": "^1.1.2",
-    "zod": "^3.24.1"
+    "zod": "^3.24.1",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.2.0",

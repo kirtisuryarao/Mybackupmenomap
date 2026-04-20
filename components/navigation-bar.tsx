@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Button } from '@/components/ui/button'
-import { Heart, CalendarDays, Lightbulb, MessageSquare, Settings, LogOut, User, Plus, BarChart3, Home } from 'lucide-react'
+import { Heart, CalendarDays, Lightbulb, MessageSquare, Settings, LogOut, User, Plus, BarChart3, Home, BookOpen } from 'lucide-react'
 import { logout } from '@/lib/auth-client'
 
 export function NavigationBar() {
@@ -28,6 +28,7 @@ export function NavigationBar() {
     { href: '/tracking', label: 'Track', icon: Plus },
     { href: '/analytics', label: 'Analysis', icon: BarChart3 },
     { href: '/insights', label: 'Insights', icon: Lightbulb },
+    { href: '/learn', label: 'Library', icon: BookOpen },
     { href: '/chatbot', label: 'Chat', icon: MessageSquare },
     { href: '/profile', label: 'Profile', icon: User },
     { href: '/settings', label: 'Settings', icon: Settings },
@@ -52,16 +53,18 @@ export function NavigationBar() {
             {navItems.map((item) => {
               const Icon = item.icon
               return (
-                <Link key={item.href} href={item.href}>
-                  <Button
-                    variant={isActive(item.href) ? 'default' : 'ghost'}
-                    size="sm"
-                    className="gap-2"
-                  >
+                <Button
+                  key={item.href}
+                  asChild
+                  variant={isActive(item.href) ? 'default' : 'ghost'}
+                  size="sm"
+                  className="gap-2"
+                >
+                  <Link href={item.href}>
                     <Icon className="h-4 w-4" />
                     <span className="hidden lg:inline">{item.label}</span>
-                  </Button>
-                </Link>
+                  </Link>
+                </Button>
               )
             })}
           </div>

@@ -54,34 +54,59 @@ export function TrackModal({ isOpen, onClose, selectedDate, onSuccess }: TrackMo
     )
   }
 
+  const handlePeriodStartChange = (checked: boolean) => {
+    setIsPeriodStart(checked)
+    if (checked && !flow) {
+      setFlow('light')
+    }
+  }
+
   const handleSubmit = async () => {
     setError('')
     setIsLoading(true)
 
     try {
+      const payload = {
+        date: format(selectedDate, 'yyyy-MM-dd'),
+        isPeriodStart,
+        mood: selectedMoods,
+        symptoms: selectedSymptoms,
+        flow: flow || null,
+        notes: notes || null,
+      }
+      
+      console.log('[TrackModal] Saving log with payload:', payload)
+
       const response = await authenticatedFetch('/api/logs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: format(selectedDate, 'yyyy-MM-dd'),
-          isPeriodStart,
-          mood: selectedMoods,
-          symptoms: selectedSymptoms,
-          flow: flow || null,
-          notes: notes || null,
-        }),
+        body: JSON.stringify(payload),
       })
 
       if (response.ok) {
+        const savedLog = await response.json()
+        console.log('[TrackModal] Log saved successfully:', {
+          hasCycleData: savedLog.cycle?.hasCycleData,
+          lastPeriodDate: savedLog.cycle?.lastPeriodDate,
+          flow: savedLog.flow,
+          isPeriodStart: payload.isPeriodStart,
+        })
+
+        // Dispatch event to trigger all data refresh
         window.dispatchEvent(new CustomEvent('menomap:logs-updated'))
-        onSuccess()
-        handleClose()
+        
+        // Small delay to ensure listeners are triggered
+        setTimeout(() => {
+          onSuccess()
+          handleClose()
+        }, 100)
       } else {
-        const data = await response.json()
-        setError(data.error || 'Failed to save tracking data')
+        const errorData = await response.json()
+        console.error('[TrackModal] Save failed:', errorData)
+        setError(errorData.error || 'Failed to save tracking data')
       }
     } catch (error) {
-      console.error('Failed to save tracking data:', error)
+      console.error('[TrackModal] Exception during save:', error)
       setError('An error occurred. Please try again.')
     } finally {
       setIsLoading(false)
@@ -123,9 +148,10 @@ export function TrackModal({ isOpen, onClose, selectedDate, onSuccess }: TrackMo
                 <Checkbox
                   id="period-start"
                   checked={isPeriodStart}
-                  onCheckedChange={(checked) => setIsPeriodStart(checked as boolean)}
+                  onCheckedChange={(checked) => handlePeriodStartChange(checked as boolean)}
+                  className="w-5 h-5 cursor-pointer"
                 />
-                <Label htmlFor="period-start" className="text-sm font-medium cursor-pointer">
+                <Label htmlFor="period-start" className="text-sm font-medium cursor-pointer flex-1">
                   Did your period start today? (Marks as Day 1 of cycle)
                 </Label>
               </div>
