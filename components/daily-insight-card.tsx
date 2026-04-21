@@ -1,9 +1,11 @@
 'use client'
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { PhaseBadge } from './phase-badge'
-import { useCycleData } from '@/hooks/use-cycle-data'
 import { Heart, Lightbulb, TrendingUp } from 'lucide-react'
+
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useCycleData } from '@/hooks/use-cycle-data'
+
+import { PhaseBadge } from './phase-badge'
 
 const phaseInsights = {
   period: {

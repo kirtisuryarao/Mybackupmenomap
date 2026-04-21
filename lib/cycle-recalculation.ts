@@ -1,5 +1,5 @@
 import Groq from 'groq-sdk'
-import { prisma } from '@/lib/prisma'
+
 import {
   buildCycleRecords,
   detectCycleStarts,
@@ -7,6 +7,7 @@ import {
   weightedAverageCycleLength,
   averagePeriodLength,
 } from '@/lib/cycle-engine'
+import { prisma } from '@/lib/prisma'
 
 const DEFAULT_CYCLE_LENGTH = 28
 const MIN_CYCLE_LENGTH = 20
@@ -102,7 +103,7 @@ export async function recomputeCycleForUser(
   const persist = options?.persist ?? true
 
   try {
-    console.log(`[CycleRecalc] Starting cycle recomputation for user ${userId}`)
+    console.error(`[CycleRecalc] Starting cycle recomputation for user ${userId}`)
     
     let allLogs
     try {
@@ -116,7 +117,7 @@ export async function recomputeCycleForUser(
           spotting: true,
         },
       })
-      console.log(`[CycleRecalc] Fetched ${allLogs.length} logs for user ${userId}`)
+      console.error(`[CycleRecalc] Fetched ${allLogs.length} logs for user ${userId}`)
     } catch (logError) {
       console.error(`[CycleRecalc] Error fetching logs:`, logError)
       throw logError
@@ -129,7 +130,7 @@ export async function recomputeCycleForUser(
         select: { cycleLength: true },
       })
       if (!user) {
-        console.warn(`[CycleRecalc] User not found: ${userId}`)
+        console.error(`[CycleRecalc] User not found: ${userId}`)
       }
     } catch (userError) {
       console.error(`[CycleRecalc] Error fetching user:`, userError)
@@ -219,7 +220,7 @@ export async function recomputeCycleForUser(
       method: aiCycleLength.method,
     }
 
-    console.log(`[CycleRecalc] Computation successful for user ${userId}:`, {
+    console.error(`[CycleRecalc] Computation successful for user ${userId}:`, {
       cycleStarts: starts.length,
       cycleLength,
       hasCycleData: true,
@@ -227,7 +228,7 @@ export async function recomputeCycleForUser(
 
   if (persist) {
     try {
-      console.log(`[CycleRecalc] Persisting cycle data for user ${userId}`)
+      console.error(`[CycleRecalc] Persisting cycle data for user ${userId}`)
       await prisma.$transaction(async (tx) => {
         await tx.cycle.deleteMany({ where: { userId } })
 
@@ -279,7 +280,7 @@ export async function recomputeCycleForUser(
           })
         }
       })
-      console.log(`[CycleRecalc] Cycle data persisted successfully for user ${userId}`)
+      console.error(`[CycleRecalc] Cycle data persisted successfully for user ${userId}`)
     } catch (persistError) {
       console.error(`[CycleRecalc] Error persisting cycle data for user ${userId}:`, persistError)
       throw persistError

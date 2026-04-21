@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { authenticateRequest } from '@/lib/middleware'
-import { createInternalErrorResponse } from '@/lib/api-error'
 import { z } from 'zod'
+
+import { createInternalErrorResponse } from '@/lib/api-error'
 import { hashPassword } from '@/lib/auth'
+import { authenticateRequest } from '@/lib/middleware'
+import { prisma } from '@/lib/prisma'
 
 const addPartnerSchema = z.object({
   name: z.string().min(1, 'Partner name is required'),

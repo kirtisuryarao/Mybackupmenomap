@@ -1,17 +1,22 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+
 import { authenticatedFetch } from '@/lib/auth-client'
 
 export interface DailyLog {
   id?: string
+  dailyLogId?: string | null
+  healthLogId?: string | null
   date: string
   flow: string | null
   spotting: string | null
   mood: string[]
+  moodText?: string | null
   symptoms: string[]
   temperature: number | null
   sleepQuality: string | null
+  sleepHours?: number | null
   notes: string | null
 }
 
@@ -30,11 +35,11 @@ export function useLogs(): UseLogsReturn {
 
   const refreshLogs = useCallback(async () => {
     try {
-      console.log('[useLogs] Refreshing logs...')
+      console.error('[useLogs] Refreshing logs...')
       const response = await authenticatedFetch('/api/logs?limit=365')
       if (response.ok) {
         const data = await response.json()
-        console.log('[useLogs] Logs fetched:', { count: data.logs?.length || 0, logs: data.logs?.slice(0, 3) })
+        console.error('[useLogs] Logs fetched:', { count: data.logs?.length || 0, logs: data.logs?.slice(0, 3) })
         setLogs(data.logs || [])
       } else {
         console.error('[useLogs] Failed to fetch logs:', response.status)

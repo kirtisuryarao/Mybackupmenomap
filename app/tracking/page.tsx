@@ -1,24 +1,25 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { LayoutWrapper } from '@/components/layout-wrapper'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { useLogs, DailyLog } from '@/hooks/use-logs'
-import { useCycleData } from '@/hooks/use-cycle-data'
 import {
   ChevronLeft,
   ChevronRight,
   Save,
   Thermometer,
-  X,
   Check,
   Trash2,
   Pencil,
   History,
   ClipboardList,
 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+
+import { LayoutWrapper } from '@/components/layout-wrapper'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useLogs, DailyLog } from '@/hooks/use-logs'
+import { useProfileData } from '@/hooks/use-profile-data'
+import { isMenopauseMode } from '@/lib/menopause'
 
 // Options matching the Clue app screenshots
 const FLOW_OPTIONS = [
@@ -40,7 +41,7 @@ const MOOD_OPTIONS = [
 ]
 
 const SYMPTOM_OPTIONS = [
-  'Pain free', 'Cramps', 'Ovulation pain', 'Breast tenderness',
+  'Pain free', 'Cramps', 'Hot flashes', 'Night sweats',
   'Headache', 'Fatigue', 'Bloating', 'Back pain',
   'Nausea', 'Acne', 'Insomnia', 'Dizziness',
 ]
@@ -91,7 +92,7 @@ function getWeekDates(centerDate: Date): Date[] {
 
 export default function TrackingPage() {
   const { logs, isLoading, getLogForDate, saveLog, deleteLog } = useLogs()
-  const { todayInfo } = useCycleData()
+  const { profile } = useProfileData()
   const [selectedDate, setSelectedDate] = useState(getDateString(new Date()))
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -107,7 +108,9 @@ export default function TrackingPage() {
   const [symptoms, setSymptoms] = useState<string[]>([])
   const [temperature, setTemperature] = useState<string>('')
   const [sleepQuality, setSleepQuality] = useState<string | null>(null)
+  const [sleepHours, setSleepHours] = useState<string>('')
   const [notes, setNotes] = useState('')
+  const menopauseModeActive = isMenopauseMode(profile?.menopauseStage)
 
   // Load existing log for selected date
   useEffect(() => {
@@ -119,6 +122,7 @@ export default function TrackingPage() {
       setSymptoms(existing.symptoms || [])
       setTemperature(existing.temperature?.toString() || '')
       setSleepQuality(existing.sleepQuality)
+      setSleepHours(existing.sleepHours?.toString() || '')
       setNotes(existing.notes || '')
     } else {
       setFlow(null)
@@ -127,6 +131,7 @@ export default function TrackingPage() {
       setSymptoms([])
       setTemperature('')
       setSleepQuality(null)
+      setSleepHours('')
       setNotes('')
     }
     setSaved(false)
@@ -160,6 +165,7 @@ export default function TrackingPage() {
         symptoms,
         temperature: temperature ? parseFloat(temperature) : null,
         sleepQuality,
+        sleepHours: sleepHours ? parseFloat(sleepHours) : null,
         notes: notes || null,
       }
       await saveLog(log)
@@ -197,6 +203,20 @@ export default function TrackingPage() {
   return (
     <LayoutWrapper>
       <div className="space-y-6 max-w-2xl mx-auto">
+        <div className="rounded-3xl border border-slate-100 bg-white p-5 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h1 className="text-2xl font-semibold text-slate-900">Track how you feel today</h1>
+              <p className="mt-1 text-sm text-slate-500">
+                Symptoms, mood, sleep, notes, and optional period details all live in one timeline.
+              </p>
+            </div>
+            {menopauseModeActive && (
+              <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">Menopause mode active</Badge>
+            )}
+          </div>
+        </div>
+
         {/* Tab Switcher */}
         <div className="flex rounded-lg border border-border overflow-hidden">
           <button
@@ -274,7 +294,7 @@ export default function TrackingPage() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base flex items-center gap-2">
-              Period Flow
+              Period (optional)
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -366,6 +386,27 @@ export default function TrackingPage() {
                   {s}
                 </button>
               ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Sleep Duration</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                step="0.5"
+                min="0"
+                max="24"
+                value={sleepHours}
+                onChange={(e) => { setSleepHours(e.target.value); setSaved(false) }}
+                placeholder="7.5"
+                className="flex h-10 w-32 rounded-md border border-input bg-background px-3 py-2 text-sm"
+              />
+              <span className="text-sm text-muted-foreground">hours</span>
             </div>
           </CardContent>
         </Card>
@@ -474,7 +515,7 @@ export default function TrackingPage() {
           /* ===== LOG HISTORY TAB ===== */
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Logged Data</h2>
+              <h2 className="text-lg font-semibold">Unified health timeline</h2>
               <p className="text-sm text-muted-foreground">{logs.length} entries</p>
             </div>
 
@@ -539,6 +580,11 @@ export default function TrackingPage() {
                                 {m}
                               </Badge>
                             ))}
+                            {log.mood.length === 0 && log.moodText && (
+                              <Badge variant="outline" className="text-xs">
+                                {log.moodText}
+                              </Badge>
+                            )}
                             {log.symptoms.length > 0 && log.symptoms.map(s => (
                               <Badge key={s} variant="secondary" className="text-xs">
                                 {s}
@@ -552,6 +598,11 @@ export default function TrackingPage() {
                             {log.sleepQuality && (
                               <Badge variant="secondary" className="text-xs">
                                 💤 {log.sleepQuality}
+                              </Badge>
+                            )}
+                            {typeof log.sleepHours === 'number' && (
+                              <Badge variant="secondary" className="text-xs">
+                                🌙 {log.sleepHours}h
                               </Badge>
                             )}
                           </div>

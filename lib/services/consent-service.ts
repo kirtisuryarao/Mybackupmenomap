@@ -1,7 +1,7 @@
 import { isPrismaConnectionError } from '@/lib/db-fallback'
 import { prisma } from '@/lib/prisma'
 
-export type ConsentScope = 'cycle' | 'symptoms'
+export type ConsentScope = 'cycle' | 'symptoms' | 'mood' | 'notes'
 
 export interface ConsentRecord {
   id: string
@@ -32,11 +32,59 @@ type ConsentServiceSuccess<T> = { success: true; data: T }
 type ConsentServiceError = { success: false; status: number; error: string }
 export type ConsentServiceResult<T> = ConsentServiceSuccess<T> | ConsentServiceError
 
-const allowedScopes: ConsentScope[] = ['cycle', 'symptoms']
+const allowedScopes: ConsentScope[] = ['cycle', 'symptoms', 'mood', 'notes']
+
+function getConsentDelegate() {
+  return (prisma as unknown as Record<string, any>).consent ?? null
+}
+
+function isConsentStorageUnavailable(error: unknown): boolean {
+  if (isPrismaConnectionError(error)) {
+    return true
+  }
+
+  if (!error || typeof error !== 'object') {
+    return false
+  }
+
+  const prismaError = error as { code?: string; message?: string }
+  return prismaError.code === 'P2021' || typeof prismaError.message === 'string' && /consent|consents|does not exist/i.test(prismaError.message)
+}
+
+async function allowLinkedPartnerFallback(
+  partnerId: string,
+  requiredScopes: ConsentScope[],
+): Promise<ConsentResult> {
+  if (requiredScopes.some((scope) => scope !== 'cycle')) {
+    return { allowed: false, status: 503, error: 'Consent storage is temporarily unavailable' }
+  }
+
+  const partner = await prisma.partner.findUnique({
+    where: { id: partnerId },
+    select: { id: true, userId: true },
+  })
+
+  if (!partner) {
+    return { allowed: false, status: 404, error: 'Partner not found' }
+  }
+
+  return {
+    allowed: true,
+    userId: partner.userId,
+    partnerId: partner.id,
+    scopes: ['cycle'],
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+  }
+}
 
 export async function listUserConsents(userId: string): Promise<ConsentServiceResult<ConsentRecord[]>> {
+  const consentDelegate = getConsentDelegate()
+  if (!consentDelegate) {
+    return { success: true, data: [] }
+  }
+
   try {
-    const consents = await prisma.consent.findMany({
+    const consents = await consentDelegate.findMany({
       where: { userId, expiresAt: { gt: new Date() } },
       orderBy: { createdAt: 'desc' },
       select: {
@@ -51,7 +99,7 @@ export async function listUserConsents(userId: string): Promise<ConsentServiceRe
 
     return { success: true, data: consents }
   } catch (error) {
-    if (isPrismaConnectionError(error)) {
+    if (isConsentStorageUnavailable(error)) {
       return { success: false, status: 503, error: 'Consent storage is temporarily unavailable' }
     }
 
@@ -65,6 +113,11 @@ export async function grantConsent(input: {
   scopes: ConsentScope[]
   expiresAt: Date
 }): Promise<ConsentServiceResult<ConsentRecord>> {
+  const consentDelegate = getConsentDelegate()
+  if (!consentDelegate) {
+    return { success: false, status: 503, error: 'Consent storage is temporarily unavailable' }
+  }
+
   if (input.scopes.length === 0) {
     return { success: false, status: 400, error: 'At least one consent scope is required' }
   }
@@ -87,9 +140,9 @@ export async function grantConsent(input: {
       return { success: false, status: 404, error: 'Partner not found' }
     }
 
-    await prisma.consent.deleteMany({ where: { userId: input.userId, partnerId: input.partnerId } })
+    await consentDelegate.deleteMany({ where: { userId: input.userId, partnerId: input.partnerId } })
 
-    const consent = await prisma.consent.create({
+    const consent = await consentDelegate.create({
       data: {
         userId: input.userId,
         partnerId: input.partnerId,
@@ -108,7 +161,7 @@ export async function grantConsent(input: {
 
     return { success: true, data: consent }
   } catch (error) {
-    if (isPrismaConnectionError(error)) {
+    if (isConsentStorageUnavailable(error)) {
       return { success: false, status: 503, error: 'Consent storage is temporarily unavailable' }
     }
 
@@ -117,11 +170,16 @@ export async function grantConsent(input: {
 }
 
 export async function revokeConsent(userId: string, partnerId: string): Promise<ConsentServiceResult<{ partnerId: string }>> {
+  const consentDelegate = getConsentDelegate()
+  if (!consentDelegate) {
+    return { success: false, status: 503, error: 'Consent storage is temporarily unavailable' }
+  }
+
   try {
-    await prisma.consent.deleteMany({ where: { userId, partnerId } })
+    await consentDelegate.deleteMany({ where: { userId, partnerId } })
     return { success: true, data: { partnerId } }
   } catch (error) {
-    if (isPrismaConnectionError(error)) {
+    if (isConsentStorageUnavailable(error)) {
       return { success: false, status: 503, error: 'Consent storage is temporarily unavailable' }
     }
 
@@ -133,8 +191,13 @@ export async function assertPartnerConsent(
   partnerId: string,
   requiredScopes: ConsentScope[]
 ): Promise<ConsentResult> {
+  const consentDelegate = getConsentDelegate()
+  if (!consentDelegate) {
+    return allowLinkedPartnerFallback(partnerId, requiredScopes)
+  }
+
   try {
-    const consent = await prisma.consent.findFirst({
+    const consent = await consentDelegate.findFirst({
       where: {
         partnerId,
         expiresAt: { gt: new Date() },
@@ -170,8 +233,8 @@ export async function assertPartnerConsent(
       expiresAt: consent.expiresAt,
     }
   } catch (error) {
-    if (isPrismaConnectionError(error)) {
-      return { allowed: false, status: 503, error: 'Consent verification is temporarily unavailable' }
+    if (isConsentStorageUnavailable(error)) {
+      return allowLinkedPartnerFallback(partnerId, requiredScopes)
     }
 
     throw error

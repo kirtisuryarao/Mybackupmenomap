@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { authenticateRequest } from '@/lib/middleware'
-import { getTokenFromRequest } from '@/lib/middleware'
+
 import { createInternalErrorResponse } from '@/lib/api-error'
 import { canUseFileAuthFallback, isPrismaConnectionError } from '@/lib/db-fallback'
 import { deleteFileRefreshTokensByUser } from '@/lib/file-auth-store'
+import { getTokenFromRequest , authenticateRequest } from '@/lib/middleware'
+import { prisma } from '@/lib/prisma'
 
 export async function POST(request: NextRequest) {
   try {

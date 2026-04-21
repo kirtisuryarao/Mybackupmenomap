@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { authenticateRequest } from '@/lib/middleware'
-import { createInternalErrorResponse } from '@/lib/api-error'
 import { z } from 'zod'
+
+import { createInternalErrorResponse } from '@/lib/api-error'
+import { authenticateRequest } from '@/lib/middleware'
+import { prisma } from '@/lib/prisma'
+
 
 const updateProfileSchema = z.object({
   name: z.string().min(1).optional(),
   email: z.string().email().optional(),
   age: z.number().int().min(1).max(120).optional().nullable(),
   cycleLength: z.number().int().min(20).max(40).optional(),
+  periodLength: z.number().int().min(1).max(15).optional(),
   periodDuration: z.number().int().min(1).max(10).optional(),
+  menopauseStage: z.enum(['regular', 'irregular', 'perimenopause', 'menopause']).optional(),
 })
 
 export async function GET(request: NextRequest) {
@@ -29,7 +33,9 @@ export async function GET(request: NextRequest) {
         name: true,
         age: true,
         cycleLength: true,
+        periodLength: true,
         periodDuration: true,
+        menopauseStage: true,
         partners: {
           select: {
             id: true,
@@ -73,7 +79,12 @@ export async function PATCH(request: NextRequest) {
         ...(validatedData.email && { email: validatedData.email }),
         ...(validatedData.age !== undefined && { age: validatedData.age }),
         ...(validatedData.cycleLength && { cycleLength: validatedData.cycleLength }),
+        ...(validatedData.periodLength && {
+          periodLength: validatedData.periodLength,
+          periodDuration: validatedData.periodLength,
+        }),
         ...(validatedData.periodDuration && { periodDuration: validatedData.periodDuration }),
+        ...(validatedData.menopauseStage && { menopauseStage: validatedData.menopauseStage }),
       },
       select: {
         id: true,
@@ -81,7 +92,9 @@ export async function PATCH(request: NextRequest) {
         name: true,
         age: true,
         cycleLength: true,
+        periodLength: true,
         periodDuration: true,
+        menopauseStage: true,
       },
     })
 

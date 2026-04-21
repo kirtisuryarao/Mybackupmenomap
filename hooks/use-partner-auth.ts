@@ -28,7 +28,7 @@ export function usePartnerAuth() {
       if (storedPartnerData) {
         try {
           setPartnerData(JSON.parse(storedPartnerData))
-        } catch (e) {
+        } catch (_e) {
           console.error('Failed to parse partner data')
         }
       }

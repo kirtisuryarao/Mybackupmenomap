@@ -1,16 +1,28 @@
 'use client'
 
-import { useState } from 'react'
+import { Users, Bell, Share2, AlertCircle, X, Check } from 'lucide-react'
+import { useEffect, useState } from 'react'
+
 import { LayoutWrapper } from '@/components/layout-wrapper'
+import { PhaseBadge } from '@/components/phase-badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { useCycleData } from '@/hooks/use-cycle-data'
 import { useProfileData } from '@/hooks/use-profile-data'
-import { Users, Bell, Share2, AlertCircle, X, Check } from 'lucide-react'
-import { PhaseBadge } from '@/components/phase-badge'
+import { authenticatedFetch } from '@/lib/auth-client'
+
+import type { PartnerConsentScope } from '@/lib/services/partner-insights'
+
+const shareableScopes: Array<{ key: PartnerConsentScope; label: string; description: string }> = [
+  { key: 'cycle', label: 'Cycle status', description: 'Phase, fertile window, ovulation, and next period predictions.' },
+  { key: 'mood', label: 'Mood visibility', description: 'Allow the partner dashboard to show mood tendencies and emotional context.' },
+  { key: 'symptoms', label: 'Symptoms visibility', description: 'Allow cramps, fatigue, bloating, and related symptom signals.' },
+  { key: 'notes', label: 'Notes visibility', description: 'Allow short note previews to improve partner context.' },
+]
 
 export default function PartnerPage() {
   const { todayInfo, isLoading } = useCycleData()
@@ -18,6 +30,8 @@ export default function PartnerPage() {
   const [newPartner, setNewPartner] = useState({ name: '', email: '', password: '' })
   const [isSavingPartner, setIsSavingPartner] = useState(false)
   const [partnerError, setPartnerError] = useState('')
+  const [consentsByPartner, setConsentsByPartner] = useState<Record<string, PartnerConsentScope[]>>({})
+  const [savingConsentFor, setSavingConsentFor] = useState<string | null>(null)
   const [notifications, setNotifications] = useState({
     periodStart: true,
     ovulation: true,
@@ -26,13 +40,50 @@ export default function PartnerPage() {
   })
   const [partnerView, setPartnerView] = useState(false)
 
+  useEffect(() => {
+    async function loadConsents() {
+      try {
+        const response = await authenticatedFetch('/api/consents')
+        if (!response.ok) return
+
+        const payload = await response.json()
+        const nextState: Record<string, PartnerConsentScope[]> = {}
+
+        for (const consent of payload.data || []) {
+          nextState[consent.partnerId] = (consent.scopes || []).filter((scope: string): scope is PartnerConsentScope =>
+            ['cycle', 'mood', 'symptoms', 'notes'].includes(scope),
+          )
+        }
+
+        setConsentsByPartner(nextState)
+      } catch (error) {
+        console.error('Error loading partner consents:', error)
+      }
+    }
+
+    loadConsents()
+  }, [])
+
   const handleAddPartner = async () => {
     if (!newPartner.name || !newPartner.email || !newPartner.password) return
 
     setPartnerError('')
     setIsSavingPartner(true)
     try {
-      await addPartner(newPartner.name, newPartner.email, newPartner.password)
+      const partner = await addPartner(newPartner.name, newPartner.email, newPartner.password)
+      const defaultScopes: PartnerConsentScope[] = ['cycle']
+      const consentResponse = await authenticatedFetch('/api/consents', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ partnerId: partner.id, scopes: defaultScopes }),
+      })
+
+      if (consentResponse.ok) {
+        setConsentsByPartner((prev) => ({ ...prev, [partner.id]: defaultScopes }))
+      }
+
       setNewPartner({ name: '', email: '', password: '' })
     } catch (error: any) {
       setPartnerError(error?.message || 'Failed to save partner')
@@ -54,6 +105,41 @@ export default function PartnerPage() {
     setNotifications((prev) => ({ ...prev, [key]: !prev[key] }))
   }
 
+  const toggleConsentScope = async (partnerId: string, scope: PartnerConsentScope, checked: boolean) => {
+    const existing = consentsByPartner[partnerId] || ['cycle']
+    const nextScopes = checked
+      ? Array.from(new Set([...existing, scope]))
+      : existing.filter((entry) => entry !== scope)
+
+    if (!nextScopes.includes('cycle')) {
+      nextScopes.unshift('cycle')
+    }
+
+    setSavingConsentFor(partnerId)
+    setPartnerError('')
+
+    try {
+      const response = await authenticatedFetch('/api/consents', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ partnerId, scopes: nextScopes }),
+      })
+
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to update sharing settings')
+      }
+
+      setConsentsByPartner((prev) => ({ ...prev, [partnerId]: nextScopes }))
+    } catch (error: any) {
+      setPartnerError(error?.message || 'Failed to update sharing settings')
+    } finally {
+      setSavingConsentFor(null)
+    }
+  }
+
   if (isLoading || !todayInfo) {
     return (
       <LayoutWrapper>
@@ -69,7 +155,7 @@ export default function PartnerPage() {
         <div>
           <h1 className="text-3xl font-bold text-foreground mb-2">Partner Awareness</h1>
           <p className="text-muted-foreground">
-            Share your cycle information with your partner to increase understanding and support
+            Share health updates with your partner to increase understanding and support
           </p>
         </div>
 
@@ -159,6 +245,33 @@ export default function PartnerPage() {
                         <h3 className="font-semibold text-foreground mb-2">Connected Partner</h3>
                         <p className="text-sm text-muted-foreground mb-1">{partner.name}</p>
                         <p className="text-xs text-muted-foreground mb-3">{partner.email}</p>
+                        <div className="mb-4 space-y-3 rounded-lg border border-primary/20 bg-background p-3">
+                          <p className="text-sm font-medium text-foreground">Privacy controls</p>
+                          {shareableScopes.map((item) => {
+                            const scopes = consentsByPartner[partner.id] || ['cycle']
+                            return (
+                              <div key={item.key} className="flex items-start gap-3">
+                                <Checkbox
+                                  id={`${partner.id}-${item.key}`}
+                                  checked={scopes.includes(item.key)}
+                                  disabled={item.key === 'cycle' || savingConsentFor === partner.id}
+                                  onCheckedChange={(checked) =>
+                                    item.key !== 'cycle' && toggleConsentScope(partner.id, item.key, Boolean(checked))
+                                  }
+                                />
+                                <div>
+                                  <Label htmlFor={`${partner.id}-${item.key}`}>{item.label}</Label>
+                                  <p className="text-xs text-muted-foreground">{item.description}</p>
+                                </div>
+                              </div>
+                            )
+                          })}
+                          <p className="text-xs text-muted-foreground">
+                            {savingConsentFor === partner.id
+                              ? 'Saving partner visibility settings...'
+                              : 'Cycle status is always required for partner guidance.'}
+                          </p>
+                        </div>
                         <Button
                           onClick={() => handleRemovePartner(partner.id)}
                           variant="outline"

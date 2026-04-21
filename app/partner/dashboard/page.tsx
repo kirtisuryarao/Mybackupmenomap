@@ -1,12 +1,18 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import Link from 'next/link'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Heart, LogOut, Calendar, TrendingUp, AlertCircle } from 'lucide-react'
+import { AlertCircle, Heart, Loader2, LogOut, RefreshCw, Send, ShieldCheck, Sprout, TriangleAlert } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 
-interface PartnerData {
+import { PartnerAdviceChecklist } from '@/components/partner/partner-advice-checklist'
+import { PartnerCycleCalendar } from '@/components/partner/partner-cycle-calendar'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+
+import type { PartnerInsights } from '@/lib/services/partner-insights'
+
+interface PartnerDashboardResponse {
   partner: {
     id: string
     name: string
@@ -20,57 +26,105 @@ interface PartnerData {
   cycleData: {
     lastPeriodDate: string | null
     cycleLength: number
+    source: string
+  }
+  visibility: {
+    cycle: boolean
+    mood: boolean
+    symptoms: boolean
+    notes: boolean
   }
   prediction: {
-    predictedPeriodDate: string
-    ovulationDate: string
-    fertileWindowStart: string
-    fertileWindowEnd: string
-    confidence: number
+    predictedPeriodDate?: string
+    ovulationDate?: string
+    fertileWindowStart?: string
+    fertileWindowEnd?: string
+    confidence?: number
   } | null
-  recentLogs: any[]
+  insights: PartnerInsights | null
+  recentLogs: Array<{
+    id: string
+    date: string
+    flow: string | null
+    mood: string[]
+    symptoms: string[]
+    notes: string | null
+    sleepQuality: string | null
+  }>
 }
 
-export default function PartnerDashboard() {
-  const [partner, setPartner] = useState<PartnerData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState('')
+interface AiMessage {
+  role: 'user' | 'assistant'
+  content: string
+}
 
-  useEffect(() => {
-    const fetchPartnerData = async () => {
-      try {
-        const token = localStorage.getItem('partnerAccessToken')
-        if (!token) {
+const suggestedPrompts = ['What should I do today?', 'Is today safe?', 'Why is she feeling low?', 'How can I avoid conflict today?']
+
+export default function PartnerDashboard() {
+  const [partnerData, setPartnerData] = useState<PartnerDashboardResponse | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [error, setError] = useState('')
+  const [assistantInput, setAssistantInput] = useState('')
+  const [assistantLoading, setAssistantLoading] = useState(false)
+  const [messages, setMessages] = useState<AiMessage[]>([])
+
+  const fetchPartnerData = async (isRefresh = false) => {
+    try {
+      if (isRefresh) setRefreshing(true)
+      const token = localStorage.getItem('partnerAccessToken')
+      if (!token) {
+        window.location.href = '/partner/login'
+        return
+      }
+
+      const response = await fetch('/api/partner/data', {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        if (response.status === 401) {
+          localStorage.removeItem('partnerAccessToken')
+          localStorage.removeItem('partnerRefreshToken')
+          localStorage.removeItem('partnerId')
           window.location.href = '/partner/login'
           return
         }
 
-        const response = await fetch('/api/partner/data', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        })
-
-        if (!response.ok) {
-          if (response.status === 401) {
-            localStorage.removeItem('partnerAccessToken')
-            localStorage.removeItem('partnerRefreshToken')
-            localStorage.removeItem('partnerId')
-            window.location.href = '/partner/login'
-          }
-          throw new Error('Failed to fetch data')
-        }
-
-        const data = await response.json()
-        setPartner(data)
-      } catch (err: any) {
-        setError(err.message || 'Failed to load dashboard')
-      } finally {
-        setLoading(false)
+        const payload = await response.json().catch(() => ({}))
+        throw new Error(payload.error || 'Failed to fetch partner dashboard')
       }
-    }
 
+      const data = (await response.json()) as PartnerDashboardResponse
+      setPartnerData(data)
+      setError('')
+
+      if (data.insights) {
+        setMessages([
+          {
+            role: 'assistant',
+            content: `${data.insights.support_advice} Fertility is ${data.insights.fertility_status.toLowerCase()} and the current phase is ${data.insights.phase.toLowerCase()}.`,
+          },
+        ])
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load dashboard')
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }
+
+  useEffect(() => {
     fetchPartnerData()
+
+    const interval = window.setInterval(() => {
+      fetchPartnerData(true)
+    }, 60_000)
+
+    return () => window.clearInterval(interval)
   }, [])
 
   const handleLogout = () => {
@@ -92,34 +146,83 @@ export default function PartnerDashboard() {
     window.location.href = '/partner/login'
   }
 
-  const switchToUserMode = () => {
-    window.location.href = '/auth/login'
+  const askAssistant = async (question: string) => {
+    if (!question.trim()) return
+
+    const token = localStorage.getItem('partnerAccessToken')
+    if (!token) {
+      window.location.href = '/partner/login'
+      return
+    }
+
+    const nextUserMessage: AiMessage = { role: 'user', content: question }
+    setMessages((previous) => [...previous, nextUserMessage])
+    setAssistantInput('')
+    setAssistantLoading(true)
+
+    try {
+      const response = await fetch('/api/partner/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ message: question }),
+      })
+
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(payload.error || 'Failed to get partner guidance')
+      }
+
+      setMessages((previous) => [...previous, { role: 'assistant', content: payload.response }])
+    } catch (err) {
+      setMessages((previous) => [
+        ...previous,
+        {
+          role: 'assistant',
+          content: err instanceof Error ? err.message : 'Failed to get partner guidance',
+        },
+      ])
+    } finally {
+      setAssistantLoading(false)
+    }
   }
+
+  const handleAssistantSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    askAssistant(assistantInput)
+  }
+
+  const checklistStorageKey = useMemo(
+    () => (partnerData?.partner.id ? `menomap-partner-actions:${partnerData.partner.id}:${new Date().toISOString().slice(0, 10)}` : 'menomap-partner-actions'),
+    [partnerData?.partner.id],
+  )
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-green-50 to-blue-50">
+      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,_#eff6ff,_#f0fdf4_55%,_#ffffff)]">
         <div className="text-center">
-          <div className="inline-block animate-pulse mb-4">
-            <Heart className="h-12 w-12 text-blue-500" />
+          <div className="mb-4 inline-flex rounded-2xl bg-sky-100 p-4 text-sky-700 shadow-sm">
+            <Heart className="h-10 w-10 animate-pulse" />
           </div>
-          <p className="text-slate-600 text-lg">Loading partner data...</p>
+          <p className="text-lg font-medium text-slate-700">Loading partner intelligence...</p>
         </div>
       </div>
     )
   }
 
-  if (error || !partner) {
+  if (error || !partnerData) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-green-50 to-blue-50 px-4">
+      <div className="flex min-h-screen items-center justify-center bg-[radial-gradient(circle_at_top,_#eff6ff,_#f0fdf4_55%,_#ffffff)] px-4">
         <Card className="w-full max-w-md border-red-200 bg-red-50">
           <CardContent className="pt-6">
-            <div className="flex items-center gap-3 text-red-700 mb-4">
+            <div className="mb-4 flex items-center gap-3 text-red-700">
               <AlertCircle className="h-6 w-6 flex-shrink-0" />
               <p className="font-semibold">{error || 'Unable to load dashboard'}</p>
             </div>
             <Button onClick={() => (window.location.href = '/partner/login')} className="w-full">
-              Return to Login
+              Return to login
             </Button>
           </CardContent>
         </Card>
@@ -127,248 +230,372 @@ export default function PartnerDashboard() {
     )
   }
 
-  const calculateCycleDay = () => {
-    if (!partner.cycleData.lastPeriodDate) return null
-    const lastPeriod = new Date(partner.cycleData.lastPeriodDate)
-    const today = new Date()
-    const diffTime = today.getTime() - lastPeriod.getTime()
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    return diffDays > partner.cycleData.cycleLength ? null : diffDays
-  }
-
-  const getCyclePhase = (day: number | null) => {
-    if (!day) return null
-    const cycleLength = partner.cycleData.cycleLength
-    if (day <= 5) return { name: 'Menstruation', color: 'bg-red-100 text-red-700' }
-    if (day <= 12) return { name: 'Follicular', color: 'bg-yellow-100 text-yellow-700' }
-    if (day <= 14) return { name: 'Ovulation', color: 'bg-blue-100 text-blue-700' }
-    return { name: 'Luteal', color: 'bg-purple-100 text-purple-700' }
-  }
-
-  const cycleDay = calculateCycleDay()
-  const phase = cycleDay ? getCyclePhase(cycleDay) : null
-
-  const daysUntilNextPeriod = partner.prediction
-    ? Math.ceil((new Date(partner.prediction.predictedPeriodDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
-    : null
+  const { linkedUser, visibility, insights, recentLogs, prediction } = partnerData
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-green-50 to-blue-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b-2 border-blue-100">
-        <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#eff6ff,_#f0fdf4_55%,_#ffffff)]">
+      <header className="border-b border-sky-100 bg-white/85 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4">
           <div className="flex items-center gap-3">
-            <div className="rounded-lg bg-blue-500 p-2">
-              <Heart className="h-6 w-6 text-white" />
+            <div className="rounded-2xl bg-sky-600 p-3 text-white shadow-sm">
+              <Heart className="h-6 w-6" />
             </div>
             <div>
               <h1 className="text-2xl font-bold text-slate-900">Partner Dashboard</h1>
-              <p className="text-sm text-slate-600">Viewing {partner.linkedUser.name}'s cycle</p>
+              <p className="text-sm text-slate-600">Viewing partner&apos;s data for {linkedUser.name}</p>
             </div>
           </div>
-          <Button onClick={handleLogout} variant="ghost" className="text-slate-700 hover:text-slate-900">
-            <LogOut className="h-5 w-5 mr-2" />
-            Logout
-          </Button>
+
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => fetchPartnerData(true)} disabled={refreshing}>
+              {refreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+              Refresh
+            </Button>
+            <Button onClick={handleLogout} variant="ghost" className="text-slate-700 hover:text-slate-900">
+              <LogOut className="mr-2 h-5 w-5" />
+              Logout
+            </Button>
+          </div>
         </div>
 
-        {/* Partner Mode Banner */}
-        <div className="bg-blue-50 border-t-2 border-blue-200 px-4 py-3">
-          <p className="text-center text-sm font-medium text-blue-800">
-            💙 You have read-only access to {partner.linkedUser.name}'s cycle information
-          </p>
+        <div className="border-t border-sky-100 bg-sky-50/80 px-4 py-3">
+          <p className="text-center text-sm font-medium text-sky-900">👉 Viewing partner&apos;s data with privacy-aware visibility. This dashboard updates from the same live cycle data used in the main app.</p>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-6xl mx-auto px-4 py-8">
-        {/* Welcome Card */}
-        <Card className="mb-8 border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-green-50">
-          <CardContent className="pt-6">
-            <p className="text-center text-slate-700">
-              <span className="font-semibold text-lg">💚 Support & Understanding</span>
-              <br />
-              <span className="text-sm">
-                Understanding {partner.linkedUser.name}'s cycle helps you provide better support during different phases.
-              </span>
-            </p>
-          </CardContent>
-        </Card>
-
-        {/* Cycle Status */}
-        {partner.cycleData.lastPeriodDate ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-            {/* Current Cycle Phase */}
-            <Card className="border-2 border-blue-200">
-              <CardHeader className="bg-gradient-to-r from-blue-50 to-green-50">
-                <CardTitle className="flex items-center gap-2 text-slate-900">
-                  <Calendar className="h-5 w-5 text-blue-600" />
-                  Current Cycle Phase
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6">
-                {cycleDay ? (
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-sm text-slate-600 mb-2">Day {cycleDay} of {partner.cycleData.cycleLength}</p>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div
-                          className="bg-blue-600 h-2 rounded-full"
-                          style={{ width: `${(cycleDay / partner.cycleData.cycleLength) * 100}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                    {phase && (
-                      <div className={`p-3 rounded-lg ${phase.color}`}>
-                        <p className="font-semibold">{phase.name}</p>
-                        <p className="text-sm mt-1">
-                          {phase.name === 'Menstruation' && '🩸 Period is ongoing. Be extra supportive during this time.'}
-                          {phase.name === 'Follicular' && '🌱 Energy levels are rising. Great time for new activities together.'}
-                          {phase.name === 'Ovulation' && '✨ Peak energy phase. This is a great time for quality time!'}
-                          {phase.name === 'Luteal' && '🌙 Energy may be lower. Offer support and understanding.'}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-slate-600">No active cycle data. Check back after logging starts.</p>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Next Period Prediction */}
-            <Card className="border-2 border-green-200">
-              <CardHeader className="bg-gradient-to-r from-green-50 to-blue-50">
-                <CardTitle className="flex items-center gap-2 text-slate-900">
-                  <TrendingUp className="h-5 w-5 text-green-600" />
-                  Next Period Prediction
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6">
-                {partner.prediction ? (
-                  <div className="space-y-4">
-                    {daysUntilNextPeriod !== null && (
-                      <>
-                        <div>
-                          <p className="text-sm text-slate-600 mb-2">Days until next period</p>
-                          <p className="text-3xl font-bold text-green-600">{Math.max(0, daysUntilNextPeriod)}</p>
-                        </div>
-                        <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                          <p className="text-sm text-green-800">
-                            <span className="font-semibold">Predicted Date:</span>
-                            <br />
-                            {new Date(partner.prediction.predictedPeriodDate).toLocaleDateString('en-US', {
-                              weekday: 'long',
-                              year: 'numeric',
-                              month: 'long',
-                              day: 'numeric',
-                            })}
-                          </p>
-                        </div>
-                        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                          <p className="text-sm text-blue-800">
-                            <span className="font-semibold">Ovulation:</span>
-                            <br />
-                            {new Date(partner.prediction.ovulationDate).toLocaleDateString('en-US', {
-                              weekday: 'short',
-                              month: 'short',
-                              day: 'numeric',
-                            })}
-                          </p>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                ) : (
-                  <p className="text-slate-600">No predictions available yet. Check back after more cycle data is logged.</p>
-                )}
-              </CardContent>
-            </Card>
-          </div>
+      <main className="mx-auto max-w-7xl space-y-6 px-4 py-8">
+        {!insights ? (
+          <Card className="border-amber-200 bg-amber-50">
+            <CardContent className="pt-6 text-center text-slate-700">
+              Cycle data is not available yet. Ask {linkedUser.name} to log their period so personalized partner guidance can appear here.
+            </CardContent>
+          </Card>
         ) : (
-          <Card className="mb-8 border-2 border-yellow-200 bg-yellow-50">
-            <CardContent className="pt-6">
-              <p className="text-center text-slate-700">
-                <span className="font-semibold">⏳ No cycle data yet</span>
-                <br />
-                <span className="text-sm">
-                  Ask {partner.linkedUser.name} to start logging their period so you can access cycle insights.
-                </span>
-              </p>
-            </CardContent>
-          </Card>
-        )}
+          <>
+            <section className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+              <Card className="overflow-hidden border-sky-200 bg-white/90 shadow-sm">
+                <CardHeader className="bg-[linear-gradient(135deg,_rgba(14,165,233,0.08),_rgba(34,197,94,0.08))]">
+                  <CardTitle className="flex items-center gap-2 text-slate-900">
+                    <span>🔥</span>
+                    Today status
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6 pt-6">
+                  <div className="grid gap-4 md:grid-cols-4">
+                    <MetricCard
+                      label="Current day"
+                      value={`Day ${insights.current_day}`}
+                      description={`of an estimated ${partnerData.cycleData.cycleLength}-day cycle`}
+                      tone="sky"
+                    />
+                    <MetricCard
+                      label="Phase"
+                      value={getPhaseDisplayLabel(insights.phase)}
+                      description={insights.phase}
+                      tone="emerald"
+                    />
+                    <MetricCard
+                      label="Fertility"
+                      value={insights.is_ovulation ? 'Peak' : insights.is_fertile ? 'Fertile' : 'Low'}
+                      description={getFertilityDescription(insights)}
+                      tone={insights.is_ovulation ? 'sky' : insights.is_fertile ? 'rose' : 'emerald'}
+                    />
+                    <MetricCard
+                      label="Next period"
+                      value={formatShortDate(insights.next_period_date)}
+                      description={getNextPeriodDescription(insights.days_to_next_period)}
+                      tone="slate"
+                    />
+                  </div>
 
-        {/* Recent Activity */}
-        {partner.recentLogs.length > 0 && (
-          <Card className="border-2 border-blue-200">
-            <CardHeader className="bg-gradient-to-r from-blue-50 to-green-50">
-              <CardTitle className="text-slate-900">Recent Activity (Last 30 Days)</CardTitle>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="space-y-2">
-                {partner.recentLogs.slice(0, 5).map((log) => (
-                  <div key={log.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
-                    <div>
-                      <p className="font-medium text-slate-900">
-                        {new Date(log.date).toLocaleDateString('en-US', {
-                          weekday: 'short',
-                          month: 'short',
-                          day: 'numeric',
-                        })}
-                      </p>
-                      <p className="text-sm text-slate-600">
-                        {log.mood?.length > 0 && `Mood: ${log.mood.join(', ')} • `}
-                        {log.symptoms?.length > 0 && `Symptoms: ${log.symptoms.slice(0, 2).join(', ')}`}
-                      </p>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Cycle guidance</p>
+                      <p className="mt-2 text-lg font-semibold text-slate-900">{insights.support_advice}</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Badge className="bg-sky-100 text-sky-700 hover:bg-sky-100">Energy: {insights.energy_level}</Badge>
+                        <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">Mood: {insights.mood_tendency}</Badge>
+                        <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">Probability: {insights.fertility_probability}</Badge>
+                      </div>
                     </div>
-                    {log.flow && (
+
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                      <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Predictions</p>
+                      <div className="mt-3 space-y-2 text-sm text-slate-700">
+                        <p>Ovulation day: Day {insights.ovulation_day} ({formatDisplayDate(insights.ovulation_date)})</p>
+                        <p>Fertile window: Day {insights.fertile_window[0]} to Day {insights.fertile_window[1]}</p>
+                        <p>Next period: {formatDisplayDate(insights.next_period_date)}</p>
+                        <p>Safe day status: {insights.is_safe_day ? 'Yes' : 'No'}</p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-emerald-200 bg-white/90 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-slate-900">
+                    <span>❤️</span>
+                    What she may feel
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4 text-sm text-slate-700">
+                  <FeelingRow label="Phase" value={insights.phase} />
+                  <FeelingRow label="Likely mood" value={insights.mood_tendency} />
+                  <FeelingRow label="Energy" value={insights.energy_level} />
+                  <FeelingRow label="Support tone" value={insights.relationship_insights[0] || insights.support_advice} />
+
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
+                    <p className="font-semibold">Visibility</p>
+                    <p className="mt-1 text-xs">Mood: {visibility.mood ? 'Shared' : 'Hidden'} • Symptoms: {visibility.symptoms ? 'Shared' : 'Hidden'} • Notes: {visibility.notes ? 'Shared' : 'Hidden'}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+
+            <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+              <PartnerAdviceChecklist storageKey={checklistStorageKey} actions={insights.support_actions} />
+
+              <Card className="border-amber-200 bg-white/90 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-slate-900">
+                    <TriangleAlert className="h-5 w-5 text-amber-600" />
+                    Alerts
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {(insights.alerts.length > 0 ? insights.alerts : ['No urgent alerts today.']).map((alert) => (
+                    <div key={alert} className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                      {alert}
+                    </div>
+                  ))}
+
+                  {insights.warnings.map((warning) => (
+                    <div key={warning} className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+                      {warning}
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            </section>
+
+            <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+              <PartnerCycleCalendar days={insights.calendar} />
+
+              <Card className="border-slate-200 bg-white/90 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-slate-900">
+                    <Sprout className="h-5 w-5 text-emerald-600" />
+                    Insights and patterns
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Relationship intelligence</p>
+                    <div className="mt-3 space-y-2">
+                      {insights.relationship_insights.map((item) => (
+                        <div key={item} className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Pattern analysis</p>
+                    <div className="mt-3 space-y-2">
+                      {insights.pattern_insights.map((item) => (
+                        <div key={item} className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-sm text-sky-900">
+                          {item}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Recent visible signals</p>
+                    <div className="mt-3 grid gap-3">
+                      <SignalCard label="Mood" values={insights.recent_signals.moods} emptyText="Mood visibility is off" />
+                      <SignalCard label="Symptoms" values={insights.recent_signals.symptoms} emptyText="Symptoms visibility is off" />
+                      <SignalCard label="Notes" values={insights.recent_signals.notes_preview} emptyText="Notes visibility is off" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </section>
+
+            <section className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+              <Card className="border-slate-200 bg-white/90 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-slate-900">
+                    <ShieldCheck className="h-5 w-5 text-sky-600" />
+                    Predictions and privacy
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4 text-sm text-slate-700">
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="font-semibold text-slate-900">Support score</p>
+                    <p className="mt-1 text-3xl font-bold text-sky-700">{insights.support_score.support_score}</p>
+                    <p className="text-slate-600">{insights.support_score.status}</p>
+                  </div>
+
+                  <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <p>Prediction confidence: {Math.round((prediction?.confidence || 0.5) * 100)}%</p>
+                    <p>Cycle source: {partnerData.cycleData.source.replaceAll('_', ' ')}</p>
+                    <p>Last period date: {partnerData.cycleData.lastPeriodDate ? formatDisplayDate(partnerData.cycleData.lastPeriodDate) : 'Not available'}</p>
+                    <p>Latest logs synced: {recentLogs.length}</p>
+                  </div>
+
+                  <div className="rounded-xl border border-sky-200 bg-sky-50 p-4 text-sky-900">
+                    Read-only access respects the user&apos;s current sharing choices. Hidden data never renders here.
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-slate-200 bg-white/90 shadow-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-slate-900">
+                    <span>🧠</span>
+                    Partner AI assistant
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-3 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    {messages.map((message, index) => (
                       <div
-                        className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          log.flow === 'heavy' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
-                        }`}
+                        key={`${message.role}-${index}`}
+                        className={`rounded-2xl px-4 py-3 text-sm ${message.role === 'assistant' ? 'bg-white text-slate-700' : 'bg-sky-600 text-white'}`}
                       >
-                        {log.flow}
+                        {message.content}
+                      </div>
+                    ))}
+                    {assistantLoading && (
+                      <div className="flex items-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm text-slate-600">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Thinking...
                       </div>
                     )}
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+
+                  <div className="flex flex-wrap gap-2">
+                    {suggestedPrompts.map((prompt) => (
+                      <Button key={prompt} type="button" variant="outline" size="sm" onClick={() => askAssistant(prompt)}>
+                        {prompt}
+                      </Button>
+                    ))}
+                  </div>
+
+                  <form onSubmit={handleAssistantSubmit} className="flex gap-2">
+                    <Input
+                      value={assistantInput}
+                      onChange={(event) => setAssistantInput(event.target.value)}
+                      placeholder="Ask what to do today, whether it is safe, or why she feels low..."
+                    />
+                    <Button type="submit" disabled={assistantLoading || !assistantInput.trim()}>
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            </section>
+          </>
         )}
-
-        {/* Information Card */}
-        <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Card className="border-2 border-blue-100 bg-blue-50">
-            <CardContent className="pt-6">
-              <p className="text-sm text-slate-700">
-                <span className="font-semibold">🔒 Privacy Protected:</span> Only you and your partner can access this data
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="border-2 border-green-100 bg-green-50">
-            <CardContent className="pt-6">
-              <p className="text-sm text-slate-700">
-                <span className="font-semibold">📖 Read-Only Access:</span> You can view but not edit any data
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="border-2 border-purple-100 bg-purple-50">
-            <CardContent className="pt-6">
-              <p className="text-sm text-slate-700">
-                <span className="font-semibold">💚 Be Supportive:</span> Use this insight to be a better partner
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="mt-6 flex justify-end">
-          <Button onClick={switchToUserMode} variant="outline" className="border-blue-200 text-blue-700">
-            Switch to User Mode
-          </Button>
-        </div>
       </main>
     </div>
   )
+}
+
+function MetricCard({
+  label,
+  value,
+  description,
+  tone,
+}: {
+  label: string
+  value: string
+  description?: string
+  tone: 'sky' | 'emerald' | 'rose' | 'slate'
+}) {
+  const toneClass = {
+    sky: 'border-sky-200 bg-sky-50 text-sky-800',
+    emerald: 'border-emerald-200 bg-emerald-50 text-emerald-800',
+    rose: 'border-rose-200 bg-rose-50 text-rose-800',
+    slate: 'border-slate-200 bg-slate-50 text-slate-800',
+  }[tone]
+
+  return (
+    <div className={`flex min-w-0 flex-col justify-between rounded-2xl border p-4 ${toneClass}`}>
+      <p className="text-xs uppercase tracking-[0.2em] opacity-70">{label}</p>
+      <div className="mt-2 min-w-0">
+        <p className="text-xl leading-tight font-bold sm:text-2xl">{value}</p>
+        {description ? <p className="mt-2 text-xs leading-relaxed opacity-80">{description}</p> : null}
+      </div>
+    </div>
+  )
+}
+
+function getPhaseDisplayLabel(phase: PartnerInsights['phase']) {
+  switch (phase) {
+    case 'Menstruation':
+      return 'Period'
+    case 'Follicular':
+      return 'Follicular'
+    case 'Ovulation':
+      return 'Ovulation'
+    case 'Luteal':
+      return 'Luteal'
+    default:
+      return phase
+  }
+}
+
+function getFertilityDescription(insights: PartnerInsights) {
+  if (insights.is_ovulation) {
+    return 'Ovulation day. Pregnancy likelihood is highest.'
+  }
+
+  if (insights.is_fertile) {
+    return `Fertile window is active. Probability is ${insights.fertility_probability.toLowerCase()}.`
+  }
+
+  return `Outside the fertile window. Probability is ${insights.fertility_probability.toLowerCase()}.`
+}
+
+function getNextPeriodDescription(daysToNextPeriod: number) {
+  if (daysToNextPeriod === 0) return 'Expected today'
+  if (daysToNextPeriod === 1) return 'Expected tomorrow'
+  return `Expected in ${daysToNextPeriod} days`
+}
+
+function formatShortDate(dateString: string) {
+  return new Date(dateString).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+function FeelingRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-3 last:border-b-0 last:pb-0">
+      <p className="text-slate-500">{label}</p>
+      <p className="max-w-[14rem] text-right font-medium text-slate-900">{value}</p>
+    </div>
+  )
+}
+
+function SignalCard({ label, values, emptyText }: { label: string; values: string[]; emptyText: string }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+      <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{label}</p>
+      <p className="mt-2 text-sm text-slate-700">{values.length > 0 ? values.join(', ') : emptyText}</p>
+    </div>
+  )
+}
+
+function formatDisplayDate(dateString: string) {
+  return new Date(dateString).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
 }

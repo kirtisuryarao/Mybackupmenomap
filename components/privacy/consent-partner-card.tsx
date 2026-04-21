@@ -1,7 +1,6 @@
 'use client'
 
 import { AlertCircle, CheckCircle, Clock, Shield } from 'lucide-react'
-import { useState } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -40,7 +39,6 @@ export function ConsentPartnerCard({
   onSave,
   onRevoke,
 }: ConsentPartnerProps) {
-  const [isExpanded, setIsExpanded] = useState(false)
   const hasChanges = selectedScopes.length > 0
 
   const expirationDays = expiresAt ? Math.ceil((expiresAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : null

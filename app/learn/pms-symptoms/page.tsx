@@ -1,6 +1,6 @@
-import React from "react";
+import { ArrowLeft, Brain, CheckCircle2, Sparkles } from "lucide-react";
 import Link from "next/link";
-import { ArrowLeft, BookOpen, Brain, CheckCircle2, Sparkles } from "lucide-react";
+import React from "react";
 
 export default function PMSBlog() {
   return (

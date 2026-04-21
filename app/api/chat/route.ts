@@ -1,11 +1,12 @@
-import { NextRequest, NextResponse } from 'next/server'
 import Groq from 'groq-sdk'
+import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { prisma } from '@/lib/prisma'
-import { authenticateRequest } from '@/lib/middleware'
+
 import { createInternalErrorResponse } from '@/lib/api-error'
 import { getDayInfo } from '@/lib/cycle-calculations'
 import { getCycleData } from '@/lib/get-cycle-data'
+import { authenticateRequest } from '@/lib/middleware'
+import { prisma } from '@/lib/prisma'
 
 const sendMessageSchema = z.object({
   message: z.string().min(1).max(5000),
@@ -192,7 +193,7 @@ async function getUserCycleContext(userId: string): Promise<CycleContext> {
     ])
 
     if (!cycleData.hasCycleData) {
-      console.log(`[Chat] User ${userId}: No cycle data available`)
+      console.error(`[Chat] User ${userId}: No cycle data available`)
       return {
         cycleDay: null,
         phase: null,
@@ -208,7 +209,7 @@ async function getUserCycleContext(userId: string): Promise<CycleContext> {
     const info = getDayInfo(new Date(), lastPeriod, cycleData.cycleLength)
     const nextPeriod = getNextPeriodDate(lastPeriod, cycleData.cycleLength)
 
-    console.log(`[Chat] User ${userId}: Cycle context built`, {
+    console.error(`[Chat] User ${userId}: Cycle context built`, {
       cycleDay: info.dayOfCycle,
       phase: info.phase,
       cycleLength: cycleData.cycleLength,

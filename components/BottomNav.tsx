@@ -1,15 +1,10 @@
 'use client'
 
+import { CalendarDays, Home, Plus, User, BarChart3 } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { CalendarDays, Home, Plus, User, BarChart3 } from 'lucide-react'
 
-const items = [
-  { href: '/home', label: 'Home', icon: Home },
-  { href: '/calendar', label: 'Calendar', icon: CalendarDays },
-  { href: '/analytics', label: 'Analysis', icon: BarChart3 },
-  { href: '/profile', label: 'Profile', icon: User },
-]
+import { useI18n } from '@/components/i18n/language-provider'
 
 function isPathActive(pathname: string, href: string) {
   if (href === '/home') {
@@ -20,6 +15,14 @@ function isPathActive(pathname: string, href: string) {
 
 export function BottomNav() {
   const pathname = usePathname()
+  const { t } = useI18n()
+
+  const items = [
+    { href: '/home', label: t('nav.home'), icon: Home },
+    { href: '/calendar', label: t('nav.calendar'), icon: CalendarDays },
+    { href: '/analytics', label: t('nav.analysis'), icon: BarChart3 },
+    { href: '/profile', label: t('nav.profile'), icon: User },
+  ]
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-50 border-t border-teal-100 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/85 md:hidden">
@@ -44,7 +47,7 @@ export function BottomNav() {
           <span>{items[1].label}</span>
         </Link>
 
-        <Link href="/tracking" aria-label="Track today" className="flex items-center justify-center">
+        <Link href="/tracking" aria-label={t('nav.trackToday')} className="flex items-center justify-center">
           <span className="-mt-8 flex h-16 w-16 items-center justify-center rounded-full bg-teal-600 text-white shadow-[0_10px_25px_rgba(13,148,136,0.35)] transition-transform hover:scale-105">
             <Plus className="h-7 w-7" />
           </span>

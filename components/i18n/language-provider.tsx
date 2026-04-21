@@ -11,6 +11,7 @@ interface LanguageContextValue {
 }
 
 const LANGUAGE_STORAGE_KEY = 'menomap:locale'
+const LANGUAGE_COOKIE_KEY = 'menomap_locale'
 
 const LanguageContext = createContext<LanguageContextValue | null>(null)
 
@@ -28,30 +29,61 @@ function readPathValue(source: Record<string, unknown>, key: string): string | n
   return typeof current === 'string' ? current : null
 }
 
+function isLocale(value: string | null | undefined): value is AppLocale {
+  return value === 'en' || value === 'hi'
+}
+
+function readCookieLocale(): AppLocale | null {
+  if (typeof document === 'undefined') {
+    return null
+  }
+
+  const cookie = document.cookie
+    .split('; ')
+    .find((entry) => entry.startsWith(`${LANGUAGE_COOKIE_KEY}=`))
+
+  const value = cookie?.split('=')[1]
+  return isLocale(value) ? value : null
+}
+
+function resolveInitialLocale(): AppLocale {
+  if (typeof window === 'undefined') {
+    return 'en'
+  }
+
+  const storedLocale = window.localStorage.getItem(LANGUAGE_STORAGE_KEY)
+  if (isLocale(storedLocale)) {
+    return storedLocale
+  }
+
+  const cookieLocale = readCookieLocale()
+  if (cookieLocale) {
+    return cookieLocale
+  }
+
+  const browserLang = navigator.language?.split('-')[0].toLowerCase() || 'en'
+  return browserLang === 'hi' ? 'hi' : 'en'
+}
+
+function persistLocale(locale: AppLocale) {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  window.localStorage.setItem(LANGUAGE_STORAGE_KEY, locale)
+  document.documentElement.lang = locale
+  document.cookie = `${LANGUAGE_COOKIE_KEY}=${locale}; path=/; max-age=31536000; samesite=lax`
+}
+
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<AppLocale>('en')
+  const [locale, setLocaleState] = useState<AppLocale>(resolveInitialLocale)
 
   useEffect(() => {
-    // 1. Check localStorage first
-    const saved = window.localStorage.getItem(LANGUAGE_STORAGE_KEY)
-    if (saved === 'en' || saved === 'hi') {
-      setLocaleState(saved)
-      document.documentElement.lang = saved
-      return
-    }
-
-    // 2. Try browser language if nothing saved
-    const browserLang = navigator.language?.split('-')[0].toLowerCase() || 'en'
-    const detectedLocale = browserLang === 'hi' ? 'hi' : 'en'
-    setLocaleState(detectedLocale)
-    document.documentElement.lang = detectedLocale
-    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, detectedLocale)
-  }, [])
+    persistLocale(locale)
+  }, [locale])
 
   const setLocale = useCallback((nextLocale: AppLocale) => {
     setLocaleState(nextLocale)
-    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, nextLocale)
-    document.documentElement.lang = nextLocale
   }, [])
 
   const t = useCallback((key: string): string => {
@@ -75,3 +107,5 @@ export function useI18n() {
 
   return context
 }
+
+export const useLanguage = useI18n

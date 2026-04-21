@@ -1,6 +1,6 @@
-import React from "react";
-import Link from "next/link";
 import { ArrowLeft, BookOpen, HeartPulse, CheckCircle2, AlertCircle, Sparkles } from "lucide-react";
+import Link from "next/link";
+import React from "react";
 
 export default function MenstrualCycleBlog() {
   return (

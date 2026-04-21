@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+
 import { verifyPassword } from '@/lib/auth'
 import { generatePartnerTokenPair } from '@/lib/partner-auth'
+import { prisma } from '@/lib/prisma'
 
 const partnerLoginSchema = z.object({
   email: z.string().email('Invalid email address'),

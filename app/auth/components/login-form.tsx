@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
+import { Heart } from 'lucide-react'
 import Link from 'next/link'
+import { useState } from 'react'
+
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Heart } from 'lucide-react'
 import { login } from '@/lib/auth-client'
 
 export function LoginForm() {
@@ -53,7 +54,7 @@ export function LoginForm() {
         </div>
         <CardTitle className="text-center text-2xl">Welcome Back</CardTitle>
         <CardDescription className="text-center">
-          Log in to your Cycle Companion account
+          Log in to your MenoMap account
         </CardDescription>
       </CardHeader>
       <CardContent>

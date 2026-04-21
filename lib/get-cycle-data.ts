@@ -21,14 +21,14 @@ export interface CycleDataResponse {
  */
 export async function getCycleData(userId: string): Promise<CycleDataResponse> {
   try {
-    console.log(`[CycleData] Getting cycle data for user ${userId}`)
+    console.error(`[CycleData] Getting cycle data for user ${userId}`)
     
     // First priority: Compute from actual flow logs
     let computed
     try {
-      console.log(`[CycleData] Attempting to compute cycle from logs for user ${userId}`)
+      console.error(`[CycleData] Attempting to compute cycle from logs for user ${userId}`)
       computed = await recomputeCycleForUser(userId, { persist: false })
-      console.log(`[CycleData] Computation complete:`, {
+      console.error(`[CycleData] Computation complete:`, {
         hasCycleData: computed.hasCycleData,
         hasAnyLogs: computed.hasAnyLogs,
         cycleStartsCount: computed.cycleStarts.length,
@@ -39,7 +39,7 @@ export async function getCycleData(userId: string): Promise<CycleDataResponse> {
     }
 
     if (computed.hasCycleData) {
-      console.log(`[CycleData] User ${userId}: Using computed data from logs`, {
+      console.error(`[CycleData] User ${userId}: Using computed data from logs`, {
         lastPeriodDate: computed.lastPeriodDate,
         cycleLength: computed.cycleLength,
         source: 'computed',
@@ -56,7 +56,7 @@ export async function getCycleData(userId: string): Promise<CycleDataResponse> {
     }
 
     // Fallback: Use user-provided initial data from signup
-    console.log(`[CycleData] No computed data, checking for user-provided cycle entry`)
+    console.error(`[CycleData] No computed data, checking for user-provided cycle entry`)
     let cycleEntry
     try {
       cycleEntry = await prisma.cycleEntry.findFirst({
@@ -71,7 +71,7 @@ export async function getCycleData(userId: string): Promise<CycleDataResponse> {
 
     if (cycleEntry) {
       const lastPeriodDate = formatToIso(cycleEntry.lastPeriodDate)
-      console.log(`[CycleData] User ${userId}: Using user-provided cycle entry`, {
+      console.error(`[CycleData] User ${userId}: Using user-provided cycle entry`, {
         lastPeriodDate,
         cycleLength: cycleEntry.cycleLength,
         source: 'user_provided',
@@ -88,7 +88,7 @@ export async function getCycleData(userId: string): Promise<CycleDataResponse> {
     }
 
     // No data available - return defaults
-    console.log(`[CycleData] User ${userId}: No cycle data, using defaults`)
+    console.error(`[CycleData] User ${userId}: No cycle data, using defaults`)
     return {
       hasCycleData: false,
       lastPeriodDate: null,
@@ -103,7 +103,8 @@ export async function getCycleData(userId: string): Promise<CycleDataResponse> {
     throw new Error(
       `getCycleData failed for user ${userId}: ${
         error instanceof Error ? error.message : JSON.stringify(error)
-      }`
+      }`,
+      { cause: error }
     )
   }
 }

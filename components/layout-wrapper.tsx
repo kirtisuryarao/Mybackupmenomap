@@ -1,9 +1,10 @@
 'use client'
 
 import { ReactNode } from 'react'
-import { NavigationBar } from './navigation-bar'
+
 import { BottomNav } from './BottomNav'
 import { Footer } from './footer'
+import { NavigationBar } from './navigation-bar'
 
 interface LayoutWrapperProps {
   children: ReactNode

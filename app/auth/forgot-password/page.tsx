@@ -1,12 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { Heart, AlertCircle, CheckCircle } from 'lucide-react'
 import Link from 'next/link'
+import { useState } from 'react'
+
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Heart, AlertCircle, CheckCircle } from 'lucide-react'
+
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
@@ -29,7 +31,7 @@ export default function ForgotPasswordPage() {
       await new Promise((resolve) => setTimeout(resolve, 1000))
 
       setSubmitted(true)
-    } catch (err) {
+    } catch (_err) {
       setError('An error occurred. Please try again.')
     } finally {
       setIsLoading(false)
@@ -74,7 +76,7 @@ export default function ForgotPasswordPage() {
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-background via-secondary/5 to-background px-4">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-foreground mb-2">Cycle Companion</h1>
+          <h1 className="text-3xl font-bold text-foreground mb-2">MenoMap</h1>
           <p className="text-muted-foreground">Reset Your Password</p>
         </div>
         <Card className="w-full">

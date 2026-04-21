@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
 import { MessageCircle, Send, X, Sparkles } from 'lucide-react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { authenticatedFetch } from '@/lib/auth-client'
 
 interface Message {

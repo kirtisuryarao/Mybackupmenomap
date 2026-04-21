@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+
 import { authenticatedFetch } from '@/lib/auth-client';
 
 export interface Partner {
@@ -15,7 +16,9 @@ export interface UserProfile {
   email: string;
   age: number | '';
   cycleLength: number | '';
+  periodLength: number | '';
   periodDuration: number | '';
+  menopauseStage: 'regular' | 'irregular' | 'perimenopause' | 'menopause';
 }
 
 export function useProfileData() {
@@ -35,7 +38,9 @@ export function useProfileData() {
             email: data.email || '',
             age: data.age || '',
             cycleLength: data.cycleLength || 28,
+            periodLength: data.periodLength || data.periodDuration || 5,
             periodDuration: data.periodDuration || 5,
+            menopauseStage: data.menopauseStage || 'regular',
           });
           setPartnersState(
             data.partners?.map((p: any) => ({
@@ -68,7 +73,9 @@ export function useProfileData() {
           email: updatedProfile.email,
           age: updatedProfile.age === '' ? null : updatedProfile.age,
           cycleLength: updatedProfile.cycleLength,
+          periodLength: updatedProfile.periodLength,
           periodDuration: updatedProfile.periodDuration,
+          menopauseStage: updatedProfile.menopauseStage,
         }),
       });
 
@@ -79,7 +86,9 @@ export function useProfileData() {
           email: data.email || '',
           age: data.age || '',
           cycleLength: data.cycleLength || 28,
+          periodLength: data.periodLength || data.periodDuration || 5,
           periodDuration: data.periodDuration || 5,
+          menopauseStage: data.menopauseStage || 'regular',
         });
       }
     } catch (error) {

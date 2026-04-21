@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
-import { prisma } from '@/lib/prisma'
-import { authenticateRequest } from '@/lib/middleware'
+
 import { createInternalErrorResponse } from '@/lib/api-error'
-import { getCycleData } from '@/lib/get-cycle-data'
 import { recomputeCycleForUser } from '@/lib/cycle-recalculation'
+import { getCycleData } from '@/lib/get-cycle-data'
+import { authenticateRequest } from '@/lib/middleware'
+import { prisma } from '@/lib/prisma'
 
 const updateCycleSchema = z.object({
   lastPeriodDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format'),
@@ -19,12 +20,12 @@ export async function GET(request: NextRequest) {
     }
 
     const { user } = authResult
-    console.log(`[Cycle API GET] User ${user.userId}: Fetching cycle data`)
+    console.error(`[Cycle API GET] User ${user.userId}: Fetching cycle data`)
 
     // Use shared utility - SINGLE SOURCE OF TRUTH for cycle data
     try {
       const cycleData = await getCycleData(user.userId)
-      console.log(`[Cycle API GET] User ${user.userId}: Successfully fetched cycle data`, {
+      console.error(`[Cycle API GET] User ${user.userId}: Successfully fetched cycle data`, {
         hasCycleData: cycleData.hasCycleData,
         source: cycleData.source,
       })
@@ -52,7 +53,7 @@ export async function POST(request: NextRequest) {
 
     const lastPeriodDate = new Date(`${validatedData.lastPeriodDate}T00:00:00`)
 
-    console.log(`[Cycle API] User ${user.userId}: Creating/updating cycle entry`, {
+    console.error(`[Cycle API] User ${user.userId}: Creating/updating cycle entry`, {
       lastPeriodDate: validatedData.lastPeriodDate,
       cycleLength: validatedData.cycleLength,
     })
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest) {
 
     const cycleData = await getCycleData(user.userId)
 
-    console.log(`[Cycle API] User ${user.userId}: Cycle entry saved and returned cycle data`, {
+    console.error(`[Cycle API] User ${user.userId}: Cycle entry saved and returned cycle data`, {
       hasCycleData: cycleData.hasCycleData,
       lastPeriodDate: cycleData.lastPeriodDate,
       cycleLength: cycleData.cycleLength,

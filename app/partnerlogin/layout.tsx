@@ -1,11 +1,12 @@
 'use client'
 
+import { Heart, Calendar, MessageSquare, Settings, ShoppingBag, LogOut } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { ReactNode } from 'react'
-import { Button } from '@/components/ui/button'
-import { Heart, Calendar, MessageSquare, Settings, ShoppingBag, LogOut } from 'lucide-react'
+
 import { Footer } from '@/components/footer'
+import { Button } from '@/components/ui/button'
 import { logout } from '@/lib/auth-client'
 
 interface Props {
@@ -46,7 +47,7 @@ export default function PartnerLoginLayout({ children }: Props) {
                 <Heart className="h-5 w-5 text-primary-foreground" />
               </div>
               <span className="hidden font-semibold text-foreground sm:inline">
-                Cycle Companion
+                MenoMap
               </span>
             </Link>
 

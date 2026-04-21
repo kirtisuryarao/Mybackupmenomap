@@ -1,12 +1,14 @@
 'use client';
 
+import { Trash2, Plus, AlertCircle, CheckCircle } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { useProfileData } from '@/hooks/use-profile-data';
+
 import { LayoutWrapper } from '@/components/layout-wrapper';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Trash2, Plus, AlertCircle, CheckCircle } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useProfileData } from '@/hooks/use-profile-data';
 
 export default function ProfilePage() {
   const { profile, partners, loading, updateProfile, addPartner, deletePartner } =
@@ -18,7 +20,8 @@ export default function ProfilePage() {
     email: '',
     age: '',
     cycleLength: 28,
-    periodDuration: 5,
+    periodLength: 5,
+    menopauseStage: 'regular' as 'regular' | 'irregular' | 'perimenopause' | 'menopause',
   });
   const [partnerForm, setPartnerForm] = useState({ name: '', email: '', password: '' });
   const [isAddingPartner, setIsAddingPartner] = useState(false);
@@ -32,8 +35,8 @@ export default function ProfilePage() {
         email: profile.email,
         age: profile.age === '' ? '' : String(profile.age),
         cycleLength: profile.cycleLength === '' ? 28 : Number(profile.cycleLength),
-        periodDuration:
-          profile.periodDuration === '' ? 5 : Number(profile.periodDuration),
+        periodLength: profile.periodLength === '' ? 5 : Number(profile.periodLength),
+        menopauseStage: profile.menopauseStage,
       });
     }
   }, [profile]);
@@ -55,8 +58,8 @@ export default function ProfilePage() {
     if (formData.cycleLength < 21 || formData.cycleLength > 35) {
       newErrors.cycleLength = 'Cycle length should be between 21 and 35 days';
     }
-    if (formData.periodDuration < 1 || formData.periodDuration > 10) {
-      newErrors.periodDuration = 'Period duration should be between 1 and 10 days';
+    if (formData.periodLength < 1 || formData.periodLength > 15) {
+      newErrors.periodLength = 'Period length should be between 1 and 15 days';
     }
 
     setErrors(newErrors);
@@ -88,7 +91,7 @@ export default function ProfilePage() {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: ['cycleLength', 'periodDuration', 'age'].includes(name)
+      [name]: ['cycleLength', 'periodLength', 'age'].includes(name)
         ? value === ''
           ? ''
           : Number(value)
@@ -111,7 +114,9 @@ export default function ProfilePage() {
         email: formData.email,
         age: formData.age === '' ? '' : Number(formData.age),
         cycleLength: Number(formData.cycleLength),
-        periodDuration: Number(formData.periodDuration),
+        periodLength: Number(formData.periodLength),
+        periodDuration: Number(formData.periodLength),
+        menopauseStage: formData.menopauseStage,
       });
       setIsEditing(false);
       setIsSaved(true);
@@ -257,31 +262,60 @@ export default function ProfilePage() {
                 )}
               </div>
 
-              {/* Period Duration */}
+              {/* Period Length */}
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">
-                  Period Duration (days)
+                  Period Length (days)
                 </label>
                 {isEditing ? (
                   <Input
-                    name="periodDuration"
+                    name="periodLength"
                     type="number"
-                    value={formData.periodDuration}
+                    value={formData.periodLength}
                     onChange={handleInputChange}
-                    className={errors.periodDuration ? 'border-red-500' : ''}
+                    className={errors.periodLength ? 'border-red-500' : ''}
                   />
                 ) : (
                   <p className="text-foreground py-2">
-                    {profile?.periodDuration || 5} days
+                    {profile?.periodLength || profile?.periodDuration || 5} days
                   </p>
                 )}
-                {errors.periodDuration && (
+                {errors.periodLength && (
                   <p className="text-red-500 text-sm flex items-center gap-1">
                     <AlertCircle className="w-4 h-4" />
-                    {errors.periodDuration}
+                    {errors.periodLength}
                   </p>
                 )}
               </div>
+
+              {/* Menopause Stage */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Menopause Stage</label>
+                {isEditing ? (
+                  <Select
+                    value={formData.menopauseStage}
+                    onValueChange={(value: 'regular' | 'irregular' | 'perimenopause' | 'menopause') =>
+                      setFormData((prev) => ({ ...prev, menopauseStage: value }))
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select stage" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="regular">regular</SelectItem>
+                      <SelectItem value="irregular">irregular</SelectItem>
+                      <SelectItem value="perimenopause">perimenopause</SelectItem>
+                      <SelectItem value="menopause">menopause</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <p className="text-foreground py-2 capitalize">{profile?.menopauseStage || 'regular'}</p>
+                )}
+                <p className="text-muted-foreground text-xs">
+                  This controls whether the app emphasizes cycle prediction or symptom-first tracking.
+                </p>
+              </div>
+
             </div>
 
             <div className="pt-4 flex gap-2">
@@ -348,7 +382,7 @@ export default function ProfilePage() {
 
             {partners.length === 0 && !isAddingPartner && (
               <p className="text-muted-foreground text-sm">
-                No partners added yet. Add a partner to share your cycle information.
+                No partners added yet. Add a partner to share your health information.
               </p>
             )}
 

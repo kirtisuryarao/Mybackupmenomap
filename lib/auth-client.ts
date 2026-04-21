@@ -17,8 +17,11 @@ export interface User {
   id: string
   email: string
   name: string
+  age?: number | null
   cycleLength?: number
+  periodLength?: number
   periodDuration?: number
+  menopauseStage?: 'regular' | 'irregular' | 'perimenopause' | 'menopause'
 }
 
 export interface AuthResponse {
@@ -111,8 +114,11 @@ export async function signup(data: {
   name: string
   email: string
   password: string
-  lastPeriodDate: string
+  age: number
+  lastPeriodDate?: string
   cycleLength: number
+  periodLength: number
+  menopauseStage: 'regular' | 'irregular' | 'perimenopause' | 'menopause'
 }): Promise<AuthResponse> {
   const response = await fetch('/api/auth/signup', {
     method: 'POST',
@@ -259,7 +265,7 @@ export async function getCurrentUser(): Promise<User> {
       return await parseApiResponse<User>(retryResponse)
     } catch (error) {
       clearTokens()
-      throw new Error('Authentication failed')
+      throw new Error('Authentication failed', { cause: error })
     }
   }
 
@@ -306,7 +312,7 @@ export async function authenticatedFetch(
       })
     } catch (error) {
       clearTokens()
-      throw new Error('Authentication failed')
+      throw new Error('Authentication failed', { cause: error })
     }
   }
 

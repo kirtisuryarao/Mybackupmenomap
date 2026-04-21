@@ -33,7 +33,6 @@ export function calculateDayOfCycle(lastPeriodDate: Date, currentDate: Date, cyc
 export function getCyclePhase(dayOfCycle: number, cycleLength: number = 28): CyclePhase {
   const ovulationDay = Math.floor(cycleLength / 2)
   const periodLength = 5
-  const lutealStart = ovulationDay + 1
 
   if (dayOfCycle <= periodLength) {
     return 'period'

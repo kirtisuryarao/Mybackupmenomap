@@ -1,5 +1,6 @@
-import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
+import jwt from 'jsonwebtoken'
+
 import type { SignOptions } from 'jsonwebtoken'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production'
@@ -67,7 +68,7 @@ export function verifyAccessToken(token: string): JWTPayload {
   try {
     return jwt.verify(token, JWT_SECRET) as JWTPayload
   } catch (error) {
-    throw new Error('Invalid or expired access token')
+    throw new Error('Invalid or expired access token', { cause: error })
   }
 }
 
@@ -78,7 +79,7 @@ export function verifyRefreshToken(token: string): JWTPayload {
   try {
     return jwt.verify(token, JWT_REFRESH_SECRET) as JWTPayload
   } catch (error) {
-    throw new Error('Invalid or expired refresh token')
+    throw new Error('Invalid or expired refresh token', { cause: error })
   }
 }
 

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+
 import { isAppSetupError } from '@/lib/setup-error'
 
 export function createInternalErrorResponse(

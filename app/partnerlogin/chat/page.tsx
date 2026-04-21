@@ -1,11 +1,12 @@
 'use client'
 
+import { Send, Loader2, AlertCircle } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
+
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { useCycleData } from '@/hooks/use-cycle-data'
-import { Send, Loader2, AlertCircle } from 'lucide-react'
 
 interface Message {
 id: string
@@ -43,7 +44,7 @@ ovulation:
 function getRelevantResponse(question: string): string {
 const lower = question.toLowerCase()
 
-if (lower.includes('hi') || lower.includes("hello")|| lower.includes("hey")) return "Hello! I am your cycle companion AI developed by MCA. How can I help you?"
+if (lower.includes('hi') || lower.includes("hello")|| lower.includes("hey")) return "Hello! I am your MenoMap health assistant. How can I help you?"
 if (lower.includes('pms') || lower.includes('symptom')) return mockResponses.pms
 if (lower.includes('mood') || lower.includes('emotion')) return mockResponses.mood
 if (lower.includes('exercise') || lower.includes('workout')) return mockResponses.exercise
@@ -54,14 +55,14 @@ return mockResponses.default
 }
 
 export default function ChatbotPage() {
-const { todayInfo, isLoading: cycleLoading } = useCycleData()
+const { isLoading: cycleLoading } = useCycleData()
 
 const [messages, setMessages] = useState<Message[]>([
 {
 id: '1',
 role: 'assistant',
 content:
-"Hi! I'm your Cycle Companion AI assistant. I'm here to answer questions about your menstrual health and support your wellness journey. How can I help you today?",
+"Hi! I'm your MenoMap AI assistant. I'm here to answer questions about menstrual and menopause health and support your wellness journey. How can I help you today?",
 timestamp: new Date(),
 },
 ])

@@ -25,7 +25,7 @@ export function PrivacyControlsCard({ showIcon = true, showDescription = true, c
           {showIcon && <Eye className="h-5 w-5" />}
           <CardTitle className={compact ? 'text-base' : 'text-lg'}>{t('settings.privacy')}</CardTitle>
         </div>
-        {showDescription && <CardDescription>Control what's visible when someone is near your screen.</CardDescription>}
+        {showDescription && <CardDescription>{t('settings.privacyDescription')}</CardDescription>}
       </CardHeader>
       <CardContent className={compact ? 'space-y-3' : 'space-y-4'}>
         <div className="flex items-center justify-between">
@@ -75,7 +75,7 @@ export function PrivacyControlsCard({ showIcon = true, showDescription = true, c
         <div className={`rounded-lg border border-border bg-muted/50 p-3 text-xs text-muted-foreground ${compact ? 'mt-2' : 'mt-4'}`}>
           <p className="flex items-center gap-2">
             <EyeOff className="h-3 w-3" />
-            When enabled, sensitive data appears blurred or hidden from view.
+            {t('settings.privacyDescription')}
           </p>
         </div>
       </CardContent>

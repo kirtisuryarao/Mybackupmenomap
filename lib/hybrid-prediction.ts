@@ -1,4 +1,5 @@
 import Groq from 'groq-sdk'
+
 import { prisma } from '@/lib/prisma'
 
 const DEFAULT_CYCLE_LENGTH = 28
@@ -22,11 +23,6 @@ interface MlServiceResponse {
   fertileWindowEnd?: string
   confidence?: number
   method?: string
-}
-
-interface DateRange {
-  start: string
-  end: string
 }
 
 export interface HybridPredictionResponse {

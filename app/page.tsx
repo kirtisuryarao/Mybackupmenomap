@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useEffect } from 'react'
 
 export default function Home() {
   const router = useRouter()
@@ -23,7 +23,7 @@ export default function Home() {
     <div className="flex min-h-screen items-center justify-center">
       <div className="text-center">
         <div className="animate-pulse text-lg text-muted-foreground">
-          Loading Cycle Companion...
+          Loading MenoMap...
         </div>
       </div>
     </div>

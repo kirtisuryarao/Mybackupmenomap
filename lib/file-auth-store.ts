@@ -1,6 +1,6 @@
+import { randomUUID } from 'crypto'
 import { mkdir, readFile, writeFile } from 'fs/promises'
 import path from 'path'
-import { randomUUID } from 'crypto'
 
 interface FilePartner {
   id: string
@@ -29,7 +29,9 @@ interface FileUser {
   name: string
   age: number | null
   cycleLength: number
+  periodLength: number
   periodDuration: number
+  menopauseStage: 'regular' | 'irregular' | 'perimenopause' | 'menopause'
   createdAt: string
   updatedAt: string
   lastPeriodDate: string
@@ -63,7 +65,7 @@ async function readStore(): Promise<FileAuthStore> {
       users: Array.isArray(parsed.users) ? parsed.users : [],
       refreshTokens: Array.isArray(parsed.refreshTokens) ? parsed.refreshTokens : [],
     }
-  } catch (error) {
+  } catch {
     return { users: [], refreshTokens: [] }
   }
 }
@@ -87,8 +89,11 @@ export async function createFileUser(input: {
   email: string
   passwordHash: string
   name: string
+  age: number | null
   cycleLength: number
-  lastPeriodDate: string
+  periodLength: number
+  menopauseStage: 'regular' | 'irregular' | 'perimenopause' | 'menopause'
+  lastPeriodDate?: string
   partnerPhone?: string
 }): Promise<FileUser> {
   const now = new Date().toISOString()
@@ -97,12 +102,14 @@ export async function createFileUser(input: {
     email: input.email,
     passwordHash: input.passwordHash,
     name: input.name,
-    age: null,
+    age: input.age,
     cycleLength: input.cycleLength,
+    periodLength: input.periodLength,
     periodDuration: 5,
+    menopauseStage: input.menopauseStage,
     createdAt: now,
     updatedAt: now,
-    lastPeriodDate: input.lastPeriodDate,
+    lastPeriodDate: input.lastPeriodDate || '',
     partners: input.partnerPhone
       ? [
           {
@@ -205,7 +212,9 @@ export function toApiUser(user: FileUser) {
     name: user.name,
     age: user.age,
     cycleLength: user.cycleLength,
+    periodLength: user.periodLength,
     periodDuration: user.periodDuration,
+    menopauseStage: user.menopauseStage,
     createdAt: user.createdAt,
     partners: user.partners,
     notificationSettings: user.notificationSettings,

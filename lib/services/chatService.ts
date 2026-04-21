@@ -1,10 +1,10 @@
-import { prisma } from '@/lib/prisma'
 import { isPrismaConnectionError, canUseFileAuthFallback } from '@/lib/db-fallback'
 import {
   deleteFileChatMessages,
   getFileChatMessages,
   saveFileChatMessage,
 } from '@/lib/file-chat-store'
+import { prisma } from '@/lib/prisma'
 
 export type ChatRole = 'user' | 'assistant'
 

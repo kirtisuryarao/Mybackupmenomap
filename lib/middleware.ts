@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+
 import { verifyAccessToken, JWTPayload } from './auth'
 
 export interface AuthenticatedRequest extends NextRequest {
@@ -43,7 +44,7 @@ export async function authenticateRequest(
   try {
     const payload = verifyAccessToken(token)
     return { user: payload }
-  } catch (error) {
+  } catch {
     return {
       error: NextResponse.json(
         { error: 'Invalid or expired token' },

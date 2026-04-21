@@ -1,14 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { Heart, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
+import { useState } from 'react'
+
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Heart, AlertCircle } from 'lucide-react'
-import { formatDate } from '@/lib/cycle-calculations'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { signup } from '@/lib/auth-client'
+import { formatDate } from '@/lib/cycle-calculations'
 
 export function SignupForm() {
   const [formData, setFormData] = useState({
@@ -16,8 +18,11 @@ export function SignupForm() {
     email: '',
     password: '',
     confirmPassword: '',
+    age: '45',
     lastPeriodDate: '',
     cycleLength: '28',
+    periodLength: '5',
+    menopauseStage: 'regular' as 'regular' | 'irregular' | 'perimenopause' | 'menopause',
   })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
@@ -62,15 +67,22 @@ export function SignupForm() {
     setIsLoading(true)
 
     try {
-      if (!formData.lastPeriodDate) {
-        setError('Please enter your last period date')
+      const age = parseInt(formData.age)
+      if (!age || age < 1 || age > 120) {
+        setError('Please enter a valid age')
         return
       }
 
-      // Validate cycle length
       const cycleLength = parseInt(formData.cycleLength)
       if (cycleLength < 20 || cycleLength > 40) {
         setError('Cycle length should be between 20 and 40 days')
+        setIsLoading(false)
+        return
+      }
+
+      const periodLength = parseInt(formData.periodLength)
+      if (periodLength < 1 || periodLength > 15) {
+        setError('Period length should be between 1 and 15 days')
         setIsLoading(false)
         return
       }
@@ -79,8 +91,11 @@ export function SignupForm() {
         name: formData.name,
         email: formData.email,
         password: formData.password,
-        lastPeriodDate: formData.lastPeriodDate,
+        age,
+        lastPeriodDate: formData.lastPeriodDate || undefined,
         cycleLength: cycleLength,
+        periodLength,
+        menopauseStage: formData.menopauseStage,
       })
 
       // Redirect to home
@@ -102,7 +117,7 @@ export function SignupForm() {
           </div>
           <CardTitle className="text-center text-2xl">Create Account</CardTitle>
           <CardDescription className="text-center">
-            Join Cycle Companion to start tracking your health
+            Join MenoMap to start tracking your health
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -159,7 +174,7 @@ export function SignupForm() {
             )}
 
             <Button type="submit" className="w-full">
-              Next: Cycle Information
+              Next: Health Profile
             </Button>
 
             <div className="text-center text-sm">
@@ -182,13 +197,45 @@ export function SignupForm() {
             <Heart className="h-6 w-6 text-primary-foreground" />
           </div>
         </div>
-        <CardTitle className="text-center text-2xl">Your Cycle Information</CardTitle>
+        <CardTitle className="text-center text-2xl">Your Health Profile</CardTitle>
         <CardDescription className="text-center">
-          Help us personalize your experience
+          Help us personalize tracking for your stage and symptoms
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleCycleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="age">Age</Label>
+            <Input
+              id="age"
+              name="age"
+              type="number"
+              min="1"
+              max="120"
+              value={formData.age}
+              onChange={handleInputChange}
+              required
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="menopauseStage">Menopause Stage</Label>
+            <Select
+              value={formData.menopauseStage}
+              onValueChange={(value: 'regular' | 'irregular' | 'perimenopause' | 'menopause') =>
+                setFormData((prev) => ({ ...prev, menopauseStage: value }))
+              }
+            >
+              <SelectTrigger id="menopauseStage">
+                <SelectValue placeholder="Select your stage" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="regular">regular</SelectItem>
+                <SelectItem value="irregular">irregular</SelectItem>
+                <SelectItem value="perimenopause">perimenopause</SelectItem>
+                <SelectItem value="menopause">menopause</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <div className="space-y-2">
             <Label htmlFor="lastPeriodDate">Last Period Start Date</Label>
             <Input
@@ -200,7 +247,7 @@ export function SignupForm() {
               max={formatDate(new Date())}
             />
             <p className="text-xs text-muted-foreground">
-              The date your last period started
+              Optional. Leave blank if you are not currently tracking periods.
             </p>
           </div>
           <div className="space-y-2">
@@ -216,6 +263,21 @@ export function SignupForm() {
             />
             <p className="text-xs text-muted-foreground">
               Usually 21-40 days (28 is average)
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="periodLength">Average Period Length (days)</Label>
+            <Input
+              id="periodLength"
+              name="periodLength"
+              type="number"
+              min="1"
+              max="15"
+              value={formData.periodLength}
+              onChange={handleInputChange}
+            />
+            <p className="text-xs text-muted-foreground">
+              Typical bleeding duration in days.
             </p>
           </div>
           {error && (

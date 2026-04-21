@@ -1,16 +1,18 @@
 'use client'
 
-import { useState } from 'react'
 import { format } from 'date-fns'
+import { AlertCircle, Loader2 } from 'lucide-react'
+import { useState } from 'react'
+
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Textarea } from '@/components/ui/textarea'
-import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { AlertCircle, Loader2 } from 'lucide-react'
+import { Textarea } from '@/components/ui/textarea'
 import { authenticatedFetch } from '@/lib/auth-client'
 
 interface TrackModalProps {
@@ -21,7 +23,7 @@ interface TrackModalProps {
 }
 
 const MOOD_OPTIONS = ['Happy', 'Sad', 'Anxious', 'Irritable', 'Calm', 'Energetic']
-const SYMPTOM_OPTIONS = ['Cramps', 'Headache', 'Fatigue', 'Bloating', 'Tender Breasts', 'Acne']
+const SYMPTOM_OPTIONS = ['Cramps', 'Hot flashes', 'Night sweats', 'Headache', 'Fatigue', 'Bloating', 'Tender Breasts', 'Acne']
 const FLOW_OPTIONS = [
   { value: 'light', label: '🔴 Light' },
   { value: 'medium', label: '🔴🔴 Medium' },
@@ -34,6 +36,7 @@ export function TrackModal({ isOpen, onClose, selectedDate, onSuccess }: TrackMo
   const [selectedMoods, setSelectedMoods] = useState<string[]>([])
   const [selectedSymptoms, setSelectedSymptoms] = useState<string[]>([])
   const [flow, setFlow] = useState<string>('')
+  const [sleepHours, setSleepHours] = useState('')
   const [notes, setNotes] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
@@ -72,10 +75,11 @@ export function TrackModal({ isOpen, onClose, selectedDate, onSuccess }: TrackMo
         mood: selectedMoods,
         symptoms: selectedSymptoms,
         flow: flow || null,
+        sleepHours: sleepHours ? parseFloat(sleepHours) : null,
         notes: notes || null,
       }
       
-      console.log('[TrackModal] Saving log with payload:', payload)
+      console.error('[TrackModal] Saving log with payload:', payload)
 
       const response = await authenticatedFetch('/api/logs', {
         method: 'POST',
@@ -85,7 +89,7 @@ export function TrackModal({ isOpen, onClose, selectedDate, onSuccess }: TrackMo
 
       if (response.ok) {
         const savedLog = await response.json()
-        console.log('[TrackModal] Log saved successfully:', {
+        console.error('[TrackModal] Log saved successfully:', {
           hasCycleData: savedLog.cycle?.hasCycleData,
           lastPeriodDate: savedLog.cycle?.lastPeriodDate,
           flow: savedLog.flow,
@@ -118,6 +122,7 @@ export function TrackModal({ isOpen, onClose, selectedDate, onSuccess }: TrackMo
     setSelectedMoods([])
     setSelectedSymptoms([])
     setFlow('')
+    setSleepHours('')
     setNotes('')
     setError('')
     onClose()
@@ -230,6 +235,23 @@ export function TrackModal({ isOpen, onClose, selectedDate, onSuccess }: TrackMo
                   </Badge>
                 ))}
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-2 pt-3">
+              <CardTitle className="text-sm">Sleep Hours</CardTitle>
+            </CardHeader>
+            <CardContent className="pt-0 pb-3">
+              <Input
+                type="number"
+                min="0"
+                max="24"
+                step="0.5"
+                value={sleepHours}
+                onChange={(event) => setSleepHours(event.target.value)}
+                placeholder="7.5"
+              />
             </CardContent>
           </Card>
 

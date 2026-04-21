@@ -1,12 +1,14 @@
 'use client'
 
-import { useState } from 'react'
+import { Heart, AlertCircle } from 'lucide-react'
 import Link from 'next/link'
+import { useState } from 'react'
+
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Heart, AlertCircle } from 'lucide-react'
+
 
 export default function PartnerLoginPage() {
   const [email, setEmail] = useState('')
@@ -71,7 +73,7 @@ export default function PartnerLoginPage() {
           </div>
           <h1 className="text-3xl font-bold text-slate-900 mb-2">Partner Login</h1>
           <p className="text-slate-600">
-            Login to view your partner's cycle information and insights
+            Login to view your partner's health updates and insights
           </p>
         </div>
 

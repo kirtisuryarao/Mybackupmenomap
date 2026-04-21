@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { validatePartnerRequest } from '@/lib/partner-auth'
+
 import { getCycleData } from '@/lib/get-cycle-data'
+import { validatePartnerRequest } from '@/lib/partner-auth'
+import { prisma } from '@/lib/prisma'
+import { assertPartnerConsent } from '@/lib/services/consent-service'
+import { getPartnerInsights, type PartnerConsentScope } from '@/lib/services/partner-insights'
 
 export async function GET(request: NextRequest) {
   try {
@@ -9,6 +12,11 @@ export async function GET(request: NextRequest) {
 
     if (!partnerId || error) {
       return NextResponse.json({ error: error || 'Unauthorized' }, { status: 401 })
+    }
+
+    const consent = await assertPartnerConsent(partnerId, ['cycle'])
+    if (!consent.allowed) {
+      return NextResponse.json({ error: consent.error }, { status: consent.status })
     }
 
     // Fetch partner with user info
@@ -56,10 +64,22 @@ export async function GET(request: NextRequest) {
       take: 30,
     })
 
-    console.log(`[PartnerData] Partner ${partnerId} fetching data for user ${partner.userId}`, {
+    console.error(`[PartnerData] Partner ${partnerId} fetching data for user ${partner.userId}`, {
       hasCycleData: cycleData.hasCycleData,
       source: cycleData.source,
     })
+
+    const consentScopes = consent.scopes as PartnerConsentScope[]
+    const insights = cycleData.lastPeriodDate
+      ? getPartnerInsights({
+          userName: partner.user.name,
+          lastPeriodDate: cycleData.lastPeriodDate,
+          cycleLength: cycleData.cycleLength,
+          periodLength: partner.user.periodDuration,
+          recentLogs,
+          consentScopes,
+        })
+      : null
 
     return NextResponse.json({
       partner: {
@@ -72,6 +92,12 @@ export async function GET(request: NextRequest) {
         cycleLength: cycleData.cycleLength,
         source: cycleData.source,
       },
+      visibility: {
+        cycle: true,
+        mood: consentScopes.includes('mood'),
+        symptoms: consentScopes.includes('symptoms'),
+        notes: consentScopes.includes('notes'),
+      },
       prediction: prediction
         ? {
             predictedPeriodDate: prediction.predictedPeriodDate,
@@ -80,17 +106,18 @@ export async function GET(request: NextRequest) {
             fertileWindowEnd: prediction.fertileWindowEnd,
             confidence: prediction.confidence,
           }
-        : null,
+        : cycleData.prediction,
+      insights,
       recentLogs: recentLogs.map((log) => ({
         id: log.id,
         date: log.date,
         flow: log.flow,
         spotting: log.spotting,
-        mood: log.mood,
-        symptoms: log.symptoms,
+        mood: consentScopes.includes('mood') ? log.mood : [],
+        symptoms: consentScopes.includes('symptoms') ? log.symptoms : [],
         temperature: log.temperature,
         sleepQuality: log.sleepQuality,
-        notes: log.notes,
+        notes: consentScopes.includes('notes') ? log.notes : null,
       })),
     })
   } catch (error: any) {

@@ -18,6 +18,7 @@ model User {
   age            Int?
   cycleLength    Int      @default(28) @map("cycle_length")
   periodDuration Int      @default(5) @map("period_duration")
+  menopauseStage String   @default("regular") @map("menopause_stage")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
   
@@ -25,12 +26,14 @@ model User {
   partners            Partner[]
   cycleEntries        CycleEntry[]
   dailyLogs           DailyLog[]
+  healthLogs          HealthLog[]
   cycles              Cycle[]
   predictions         Prediction[]
   notificationSettings NotificationSettings?
   privacySettings     PrivacySettings?
   chatMessages        ChatMessage[]
   refreshTokens       RefreshToken[]
+  consents            Consent[]
 
   @@map("users")
 }
@@ -48,6 +51,7 @@ model Partner {
   // Relations
   user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   refreshTokens   PartnerRefreshToken[]
+  consents        Consent[]
 
   @@unique([userId, email])
   @@index([userId])
@@ -69,6 +73,23 @@ model PartnerRefreshToken {
   @@index([partnerId])
   @@index([token])
   @@map("partner_refresh_tokens")
+}
+
+model Consent {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  partnerId String   @map("partner_id")
+  scopes    String[]
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  partner Partner @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([partnerId])
+  @@index([expiresAt])
+  @@map("consents")
 }
 
 // CycleEntry model - Historical cycle tracking data
@@ -176,6 +197,24 @@ model DailyLog {
   @@index([userId])
   @@index([date])
   @@map("daily_logs")
+}
+
+model HealthLog {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  date       DateTime @db.Date
+  symptoms   Json
+  mood       String?
+  sleepHours Float?   @map("sleep_hours")
+  notes      String?  @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId])
+  @@index([date])
+  @@map("health_logs")
 }
 
 // Cycle model - Detected cycle history (start/end dates, computed length)

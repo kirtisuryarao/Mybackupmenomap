@@ -1,11 +1,12 @@
 'use client'
 
+import { Star, ShoppingCart, Heart } from 'lucide-react'
 import { useState } from 'react'
+
 import { LayoutWrapper } from '@/components/layout-wrapper'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { useCycleData } from '@/hooks/use-cycle-data'
-import { Star, ShoppingCart, Heart } from 'lucide-react'
 
 interface Product {
   id: string

@@ -1,13 +1,16 @@
 'use client'
 
+import { Heart, CalendarDays, Lightbulb, MessageSquare, Settings, LogOut, User, Plus, BarChart3, Home, BookOpen } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
+
+import { useI18n } from '@/components/i18n/language-provider'
 import { Button } from '@/components/ui/button'
-import { Heart, CalendarDays, Lightbulb, MessageSquare, Settings, LogOut, User, Plus, BarChart3, Home, BookOpen } from 'lucide-react'
 import { logout } from '@/lib/auth-client'
 
 export function NavigationBar() {
   const pathname = usePathname()
+  const { t } = useI18n()
 
   const isActive = (path: string) => pathname === path || pathname.startsWith(`${path}/`)
 
@@ -23,15 +26,15 @@ export function NavigationBar() {
   }
 
   const navItems = [
-    { href: '/home', label: 'Home', icon: Home },
-    { href: '/calendar', label: 'Calendar', icon: CalendarDays },
-    { href: '/tracking', label: 'Track', icon: Plus },
-    { href: '/analytics', label: 'Analysis', icon: BarChart3 },
-    { href: '/insights', label: 'Insights', icon: Lightbulb },
-    { href: '/learn', label: 'Library', icon: BookOpen },
-    { href: '/chatbot', label: 'Chat', icon: MessageSquare },
-    { href: '/profile', label: 'Profile', icon: User },
-    { href: '/settings', label: 'Settings', icon: Settings },
+    { href: '/home', label: t('nav.home'), icon: Home },
+    { href: '/calendar', label: t('nav.calendar'), icon: CalendarDays },
+    { href: '/tracking', label: t('nav.track'), icon: Plus },
+    { href: '/analytics', label: t('nav.analysis'), icon: BarChart3 },
+    { href: '/insights', label: t('nav.insights'), icon: Lightbulb },
+    { href: '/learn', label: t('nav.learn'), icon: BookOpen },
+    { href: '/chatbot', label: t('nav.chat'), icon: MessageSquare },
+    { href: '/profile', label: t('nav.profile'), icon: User },
+    { href: '/settings', label: t('nav.settings'), icon: Settings },
   ]
 
   return (
@@ -43,9 +46,7 @@ export function NavigationBar() {
             <div className="rounded-lg bg-primary p-2">
               <Heart className="h-5 w-5 text-primary-foreground" />
             </div>
-            <span className="hidden font-semibold text-foreground sm:inline">
-              MenoMap
-            </span>
+            <span className="hidden font-semibold text-foreground sm:inline">{t('app.name')}</span>
           </Link>
 
           {/* Desktop Navigation */}
@@ -76,7 +77,7 @@ export function NavigationBar() {
             onClick={handleLogout}
           >
             <LogOut className="h-4 w-4" />
-            <span className="hidden sm:inline">Logout</span>
+            <span className="hidden sm:inline">{t('nav.logout')}</span>
           </Button>
         </div>
       </div>

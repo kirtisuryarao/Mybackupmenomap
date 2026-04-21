@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { authenticateRequest } from '@/lib/middleware'
+
 import { createInternalErrorResponse } from '@/lib/api-error'
-import { computeAnalytics, computePeriodLengthsFromLogs } from '@/lib/cycle-engine'
 import { getCyclePhase } from '@/lib/cycle-calculations'
+import { computeAnalytics, computePeriodLengthsFromLogs } from '@/lib/cycle-engine'
+import { authenticateRequest } from '@/lib/middleware'
+import { prisma } from '@/lib/prisma'
 
 /**
  * GET /api/analytics - Get cycle statistics, trends, and analytics

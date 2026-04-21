@@ -4,6 +4,7 @@
  */
 
 import { create } from 'zustand'
+
 import { authenticatedFetch } from '@/lib/auth-client'
 
 export interface CycleStoreState {
@@ -37,7 +38,7 @@ async function fetchCycleData(): Promise<CycleStoreState['cycleData']> {
       throw new Error(`Failed to fetch cycle data: ${response.status} ${response.statusText} - ${errorBody}`)
     }
     const data = await response.json()
-    console.log('[CycleStore] Fetched fresh cycle data:', data)
+    console.error('[CycleStore] Fetched fresh cycle data:', data)
     return data
   } catch (error) {
     console.error('[CycleStore] Error fetching cycle data:', error)
@@ -57,7 +58,7 @@ export const useCycleStore = create<CycleStoreState>((set, get) => ({
       lastFetchedAt: Date.now(),
       error: null,
     })
-    console.log('[CycleStore] Cycle data updated:', data)
+    console.error('[CycleStore] Cycle data updated:', data)
     // Dispatch event for other components
     window.dispatchEvent(new CustomEvent('menomap:cycle-updated', { detail: data }))
   },
@@ -73,15 +74,15 @@ export const useCycleStore = create<CycleStoreState>((set, get) => ({
     const state = get()
     // Prevent multiple simultaneous refreshes
     if (state.isLoading) {
-      console.warn('[CycleStore] Refresh already in progress')
+      console.error('[CycleStore] Refresh already in progress')
       return
     }
 
-    console.log('[CycleStore] Starting cycle refresh...')
+    console.error('[CycleStore] Starting cycle refresh...')
     set({ isLoading: true, error: null })
     try {
       const data = await fetchCycleData()
-      console.log('[CycleStore] Fetched cycle data:', {
+      console.error('[CycleStore] Fetched cycle data:', {
         hasCycleData: data.hasCycleData,
         lastPeriodDate: data.lastPeriodDate,
         cycleLength: data.cycleLength,
@@ -93,7 +94,7 @@ export const useCycleStore = create<CycleStoreState>((set, get) => ({
         lastFetchedAt: Date.now(),
         error: null,
       })
-      console.log('[CycleStore] Cycle refreshed successfully')
+      console.error('[CycleStore] Cycle refreshed successfully')
       // Dispatch event
       window.dispatchEvent(new CustomEvent('menomap:cycle-updated', { detail: data }))
     } catch (error) {
@@ -112,6 +113,6 @@ export const useCycleStore = create<CycleStoreState>((set, get) => ({
       error: null,
       lastFetchedAt: null,
     })
-    console.log('[CycleStore] Store cleared')
+    console.error('[CycleStore] Store cleared')
   },
 }))

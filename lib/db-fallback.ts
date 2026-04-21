@@ -1,4 +1,9 @@
-const PRISMA_CONNECTION_ERROR_CODE = 'P1001'
+const PRISMA_CONNECTION_ERROR_CODES = new Set([
+  'P1001',
+  'ETIMEDOUT',
+  'ECONNREFUSED',
+  'ENOTFOUND',
+])
 
 export function isPrismaConnectionError(error: unknown): boolean {
   if (!error || typeof error !== 'object') {
@@ -7,11 +12,19 @@ export function isPrismaConnectionError(error: unknown): boolean {
 
   const prismaError = error as { code?: string; message?: string }
 
-  if (prismaError.code === PRISMA_CONNECTION_ERROR_CODE) {
+  if (prismaError.code && PRISMA_CONNECTION_ERROR_CODES.has(prismaError.code)) {
     return true
   }
 
-  return typeof prismaError.message === 'string' && prismaError.message.includes("Can't reach database server")
+  if (typeof prismaError.message !== 'string') {
+    return false
+  }
+
+  return (
+    prismaError.message.includes("Can't reach database server") ||
+    prismaError.message.includes('timed out') ||
+    prismaError.message.includes('connect timeout')
+  )
 }
 
 export function canUseFileAuthFallback(): boolean {

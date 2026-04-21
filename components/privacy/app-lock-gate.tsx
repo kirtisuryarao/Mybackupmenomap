@@ -3,12 +3,14 @@
 import { ShieldCheck } from 'lucide-react'
 import { FormEvent, useState } from 'react'
 
+import { useI18n } from '@/components/i18n/language-provider'
 import { usePrivacy } from '@/components/privacy/privacy-provider'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 
 export function AppLockGate() {
+  const { t } = useI18n()
   const { locked, unlockWithPin } = usePrivacy()
   const [pin, setPin] = useState('')
   const [error, setError] = useState('')
@@ -20,7 +22,7 @@ export function AppLockGate() {
   const onSubmit = (event: FormEvent) => {
     event.preventDefault()
     if (!unlockWithPin(pin)) {
-      setError('That PIN did not match. Please try again.')
+      setError(t('settings.pinMismatch'))
       return
     }
 
@@ -34,14 +36,12 @@ export function AppLockGate() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-xl">
             <ShieldCheck className="h-5 w-5" />
-            App lock enabled
+            {t('settings.appLockEnabledStatus')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-4">
-            <p className="text-sm text-muted-foreground">
-              Enter your PIN to unlock your private health data.
-            </p>
+            <p className="text-sm text-muted-foreground">{t('settings.unlockPrompt')}</p>
             <Input
               value={pin}
               onChange={(event) => setPin(event.target.value.replace(/[^0-9]/g, ''))}
@@ -49,12 +49,12 @@ export function AppLockGate() {
               type="password"
               minLength={4}
               maxLength={6}
-              placeholder="Enter PIN"
+              placeholder={t('settings.enterPin')}
               autoFocus
             />
             {error && <p className="text-sm text-destructive">{error}</p>}
             <Button type="submit" className="w-full">
-              Unlock app
+              {t('settings.unlockApp')}
             </Button>
           </form>
         </CardContent>

@@ -1,25 +1,32 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { Bell, Download, Eye, Lock, LogOut, Palette, Settings, Trash2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
+
+import { useI18n } from '@/components/i18n/language-provider'
+import { LanguageToggle } from '@/components/i18n/language-toggle'
 import { LayoutWrapper } from '@/components/layout-wrapper'
+import { AppLockCard } from '@/components/privacy/app-lock-card'
+import { PrivacyControlsCard } from '@/components/privacy/privacy-controls-card'
+import { ThemeToggle } from '@/components/theme-toggle'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { useCycleData } from '@/hooks/use-cycle-data'
-import { formatDate, parseDate } from '@/lib/cycle-calculations'
-import { authenticatedFetch } from '@/lib/auth-client'
-import { Settings, Bell, Eye, Lock, LogOut, Download, Trash2 } from 'lucide-react'
-import { logout } from '@/lib/auth-client'
+import { useProfileData } from '@/hooks/use-profile-data'
+import { authenticatedFetch, logout } from '@/lib/auth-client'
+import { formatDate } from '@/lib/cycle-calculations'
 
 export default function SettingsPage() {
+  const { t } = useI18n()
   const { cycleData, updateCycleData, isLoading } = useCycleData()
+  const { profile, updateProfile } = useProfileData()
   const [isEditing, setIsEditing] = useState(false)
-  const [editData, setEditData] = useState({
-    lastPeriodDate: '',
-    cycleLength: '28',
-  })
+  const [editData, setEditData] = useState({ lastPeriodDate: '', cycleLength: '28' })
+  const [healthProfile, setHealthProfile] = useState({ age: '', periodLength: '5', menopauseStage: 'regular' as 'regular' | 'irregular' | 'perimenopause' | 'menopause' })
   const [notifications, setNotifications] = useState({
     periodReminder: true,
     phaseChange: true,
@@ -32,64 +39,100 @@ export default function SettingsPage() {
     allowHealthInsight: true,
   })
   const [saveMessage, setSaveMessage] = useState('')
-  const [settingsLoaded, setSettingsLoaded] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState<'data' | 'account' | null>(null)
 
-  // Load settings from server on mount
   useEffect(() => {
     async function loadSettings() {
       try {
-        const res = await authenticatedFetch('/api/settings')
-        if (res.ok) {
-          const data = await res.json()
-          if (data.notifications) setNotifications(data.notifications)
-          if (data.privacy) setPrivacy(data.privacy)
+        const response = await authenticatedFetch('/api/settings')
+        if (!response.ok) {
+          return
         }
+
+        const data = await response.json()
+        if (data.notifications) setNotifications(data.notifications)
+        if (data.privacy) setPrivacy(data.privacy)
       } catch (error) {
         console.error('Failed to load settings:', error)
-      } finally {
-        setSettingsLoaded(true)
       }
     }
-    loadSettings()
+
+    void loadSettings()
   }, [])
 
   useEffect(() => {
-    if (cycleData && cycleData.lastPeriodDate) {
-      setEditData({
-        lastPeriodDate: cycleData.lastPeriodDate,
-        cycleLength: cycleData.cycleLength?.toString() || '28',
-      })
+    if (!cycleData?.lastPeriodDate) {
+      return
     }
+
+    setEditData({
+      lastPeriodDate: cycleData.lastPeriodDate,
+      cycleLength: cycleData.cycleLength?.toString() || '28',
+    })
   }, [cycleData])
 
+  useEffect(() => {
+    if (!profile) {
+      return
+    }
+
+    setHealthProfile({
+      age: profile.age === '' ? '' : String(profile.age),
+      periodLength: profile.periodLength === '' ? '5' : String(profile.periodLength),
+      menopauseStage: profile.menopauseStage,
+    })
+  }, [profile])
+
+  const showMessage = (message: string) => {
+    setSaveMessage(message)
+    window.setTimeout(() => setSaveMessage(''), 3000)
+  }
+
   const handleUpdateCycle = async () => {
-    if (editData.lastPeriodDate && editData.cycleLength) {
-      const cycleLength = parseInt(editData.cycleLength)
-      if (cycleLength >= 20 && cycleLength <= 40) {
-        console.log('[Settings] Updating cycle with:', { 
-          lastPeriodDate: editData.lastPeriodDate, 
-          cycleLength 
-        })
-        try {
-          await updateCycleData(editData.lastPeriodDate, cycleLength)
-          console.log('[Settings] Cycle update completed')
-          setIsEditing(false)
-          setSaveMessage('Cycle information updated successfully!')
-          // Wait a moment for all listeners to update
-          setTimeout(() => setSaveMessage(''), 3000)
-        } catch (error) {
-          console.error('[Settings] Failed to update cycle:', error)
-          setSaveMessage('Failed to update cycle information. Please try again.')
-          setTimeout(() => setSaveMessage(''), 3000)
-        }
-      }
+    if (!editData.lastPeriodDate || !editData.cycleLength) {
+      return
+    }
+
+    const cycleLength = Number.parseInt(editData.cycleLength, 10)
+    if (cycleLength < 20 || cycleLength > 40) {
+      return
+    }
+
+    try {
+      await updateCycleData(editData.lastPeriodDate, cycleLength)
+      setIsEditing(false)
+      showMessage(t('settings.cycleUpdated'))
+    } catch (error) {
+      console.error('Failed to update cycle:', error)
+      showMessage(t('settings.cycleUpdateFailed'))
+    }
+  }
+
+  const handleSaveHealthProfile = async () => {
+    if (!profile) {
+      return
+    }
+
+    try {
+      await updateProfile({
+        ...profile,
+        age: healthProfile.age === '' ? '' : Number(healthProfile.age),
+        periodLength: Number(healthProfile.periodLength),
+        periodDuration: Number(healthProfile.periodLength),
+        menopauseStage: healthProfile.menopauseStage,
+      })
+      showMessage('Health profile updated')
+    } catch (error) {
+      console.error('Failed to update health profile:', error)
+      showMessage('Failed to update health profile')
     }
   }
 
   const handleNotificationChange = async (key: keyof typeof notifications) => {
-    const updated = { ...notifications, [key]: !notifications[key] }
+    const previous = notifications
+    const updated = { ...previous, [key]: !previous[key] }
     setNotifications(updated)
+
     try {
       await authenticatedFetch('/api/settings', {
         method: 'PATCH',
@@ -98,14 +141,15 @@ export default function SettingsPage() {
       })
     } catch (error) {
       console.error('Failed to save notification setting:', error)
-      // Revert on failure
-      setNotifications(notifications)
+      setNotifications(previous)
     }
   }
 
   const handlePrivacyChange = async (key: keyof typeof privacy) => {
-    const updated = { ...privacy, [key]: !privacy[key] }
+    const previous = privacy
+    const updated = { ...previous, [key]: !previous[key] }
     setPrivacy(updated)
+
     try {
       await authenticatedFetch('/api/settings', {
         method: 'PATCH',
@@ -114,29 +158,28 @@ export default function SettingsPage() {
       })
     } catch (error) {
       console.error('Failed to save privacy setting:', error)
-      // Revert on failure
-      setPrivacy(privacy)
+      setPrivacy(previous)
     }
   }
 
   const handleExportData = async () => {
     try {
       const response = await authenticatedFetch('/api/export?type=all')
-      if (response.ok) {
-        const blob = await response.blob()
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `menomap-export-${new Date().toISOString().split('T')[0]}.csv`
-        a.click()
-        URL.revokeObjectURL(url)
-        setSaveMessage('Data exported successfully!')
-        setTimeout(() => setSaveMessage(''), 3000)
+      if (!response.ok) {
+        throw new Error('Export failed')
       }
+
+      const blob = await response.blob()
+      const url = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = `menomap-export-${new Date().toISOString().split('T')[0]}.csv`
+      anchor.click()
+      URL.revokeObjectURL(url)
+      showMessage(t('settings.dataExported'))
     } catch (error) {
       console.error('Export failed:', error)
-      setSaveMessage('Failed to export data.')
-      setTimeout(() => setSaveMessage(''), 3000)
+      showMessage(t('settings.dataExportFailed'))
     }
   }
 
@@ -145,17 +188,15 @@ export default function SettingsPage() {
       setConfirmDelete('data')
       return
     }
+
     try {
-      // Delete all logs, cycles, predictions - keeps account
       await authenticatedFetch('/api/logs', { method: 'DELETE' })
-      setSaveMessage('All tracking data deleted.')
       setConfirmDelete(null)
-      setTimeout(() => setSaveMessage(''), 3000)
       window.dispatchEvent(new CustomEvent('menomap:logs-updated'))
+      showMessage(t('settings.dataDeleted'))
     } catch (error) {
       console.error('Delete data failed:', error)
-      setSaveMessage('Failed to delete data.')
-      setTimeout(() => setSaveMessage(''), 3000)
+      showMessage(t('settings.dataDeleteFailed'))
     }
   }
 
@@ -165,7 +206,6 @@ export default function SettingsPage() {
       window.location.href = '/auth/login'
     } catch (error) {
       console.error('Logout error:', error)
-      // Still redirect even if API call fails
       window.location.href = '/auth/login'
     }
   }
@@ -173,63 +213,79 @@ export default function SettingsPage() {
   if (isLoading) {
     return (
       <LayoutWrapper>
-        <div className="text-center py-12">Loading settings...</div>
+        <div className="py-12 text-center">{t('settings.loading')}</div>
       </LayoutWrapper>
     )
   }
 
   return (
     <LayoutWrapper>
-      <div className="space-y-6 max-w-3xl">
-        {/* Header */}
+      <div className="max-w-3xl space-y-6">
         <div>
-          <h1 className="text-3xl font-bold text-foreground mb-2">Settings</h1>
-          <p className="text-muted-foreground">
-            Manage your cycle information, notifications, and preferences
-          </p>
+          <h1 className="mb-2 text-3xl font-bold text-foreground">{t('settings.title')}</h1>
+          <p className="text-muted-foreground">{t('settings.subtitle')}</p>
         </div>
 
-        {/* Success Message */}
         {saveMessage && (
-          <div className="bg-green-100 border border-green-300 text-green-800 px-4 py-3 rounded-lg text-sm">
+          <div className="rounded-lg border border-green-300 bg-green-100 px-4 py-3 text-sm text-green-800">
             {saveMessage}
           </div>
         )}
 
-        {/* Cycle Information Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Palette className="h-5 w-5" />
+              {t('settings.appearance')}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>{t('settings.theme')}</Label>
+              <p className="mb-3 text-sm text-muted-foreground">{t('settings.chooseTheme')}</p>
+              <ThemeToggle />
+            </div>
+            <div className="space-y-2 border-t border-border pt-4">
+              <Label>{t('settings.language')}</Label>
+              <p className="mb-3 text-sm text-muted-foreground">{t('settings.selectLanguage')}</p>
+              <LanguageToggle />
+            </div>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Settings className="h-5 w-5" />
-              Cycle Information
+              {t('settings.cycleInformation')}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {!isEditing ? (
               <div className="space-y-4">
-                {cycleData && cycleData.lastPeriodDate ? (
+                {cycleData?.lastPeriodDate ? (
                   <>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <p className="text-sm text-muted-foreground mb-1">Last Period Date</p>
+                        <p className="mb-1 text-sm text-muted-foreground">{t('settings.lastPeriodDate')}</p>
                         <p className="font-semibold text-foreground">
                           {new Date(cycleData.lastPeriodDate).toLocaleDateString()}
                         </p>
                       </div>
                       <div>
-                        <p className="text-sm text-muted-foreground mb-1">Cycle Length</p>
-                        <p className="font-semibold text-foreground">{cycleData.cycleLength} days</p>
+                        <p className="mb-1 text-sm text-muted-foreground">{t('settings.cycleLength')}</p>
+                        <p className="font-semibold text-foreground">{cycleData.cycleLength} {t('common.days')}</p>
                       </div>
                     </div>
                     <Button onClick={() => setIsEditing(true)} variant="outline" className="w-full">
-                      Edit Cycle Information
+                      {t('settings.editCycleInformation')}
                     </Button>
                   </>
                 ) : (
-                  <div className="text-center py-4">
-                    <p className="text-muted-foreground mb-4">No cycle data loaded yet</p>
+                  <div className="py-4 text-center">
+                    <p className="mb-4 text-muted-foreground">{t('settings.noCycleData')}</p>
                     <Button onClick={() => setIsEditing(true)} variant="outline" className="w-full">
-                      Add Cycle Information
+                      {t('settings.addCycleInformation')}
                     </Button>
                   </div>
                 )}
@@ -237,41 +293,33 @@ export default function SettingsPage() {
             ) : (
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="last-period-date">Last Period Start Date</Label>
+                  <Label htmlFor="last-period-date">{t('settings.lastPeriodStartDate')}</Label>
                   <Input
                     id="last-period-date"
                     type="date"
                     value={editData.lastPeriodDate}
-                    onChange={(e) =>
-                      setEditData((prev) => ({ ...prev, lastPeriodDate: e.target.value }))
-                    }
+                    onChange={(event) => setEditData((prev) => ({ ...prev, lastPeriodDate: event.target.value }))}
                     max={formatDate(new Date())}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="cycle-length">Cycle Length (days)</Label>
+                  <Label htmlFor="cycle-length">{t('settings.cycleLengthDays')}</Label>
                   <Input
                     id="cycle-length"
                     type="number"
                     min="20"
                     max="40"
                     value={editData.cycleLength}
-                    onChange={(e) =>
-                      setEditData((prev) => ({ ...prev, cycleLength: e.target.value }))
-                    }
+                    onChange={(event) => setEditData((prev) => ({ ...prev, cycleLength: event.target.value }))}
                   />
-                  <p className="text-xs text-muted-foreground">Usually 21-40 days</p>
+                  <p className="text-xs text-muted-foreground">{t('settings.cycleLengthHint')}</p>
                 </div>
                 <div className="flex gap-2">
                   <Button onClick={handleUpdateCycle} className="flex-1">
-                    Save Changes
+                    {t('settings.saveChanges')}
                   </Button>
-                  <Button
-                    onClick={() => setIsEditing(false)}
-                    variant="outline"
-                    className="flex-1"
-                  >
-                    Cancel
+                  <Button onClick={() => setIsEditing(false)} variant="outline" className="flex-1">
+                    {t('settings.cancel')}
                   </Button>
                 </div>
               </div>
@@ -279,188 +327,198 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
-        {/* Notification Preferences */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              Menopause and symptom profile
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="settings-age">Age</Label>
+                <Input
+                  id="settings-age"
+                  type="number"
+                  min="1"
+                  max="120"
+                  value={healthProfile.age}
+                  onChange={(event) => setHealthProfile((prev) => ({ ...prev, age: event.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="settings-period-length">Period length (days)</Label>
+                <Input
+                  id="settings-period-length"
+                  type="number"
+                  min="1"
+                  max="15"
+                  value={healthProfile.periodLength}
+                  onChange={(event) => setHealthProfile((prev) => ({ ...prev, periodLength: event.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="settings-menopause-stage">Menopause stage</Label>
+              <Select
+                value={healthProfile.menopauseStage}
+                onValueChange={(value: 'regular' | 'irregular' | 'perimenopause' | 'menopause') =>
+                  setHealthProfile((prev) => ({ ...prev, menopauseStage: value }))
+                }
+              >
+                <SelectTrigger id="settings-menopause-stage">
+                  <SelectValue placeholder="Select stage" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="regular">regular</SelectItem>
+                  <SelectItem value="irregular">irregular</SelectItem>
+                  <SelectItem value="perimenopause">perimenopause</SelectItem>
+                  <SelectItem value="menopause">menopause</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Button onClick={handleSaveHealthProfile} className="w-full">
+              Save menopause profile
+            </Button>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Bell className="h-5 w-5" />
-              Notifications
+              {t('settings.notifications')}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium">Period Reminders</p>
-                <p className="text-sm text-muted-foreground">
-                  Get reminded when your period is about to start
-                </p>
+                <p className="font-medium">{t('settings.periodReminders')}</p>
+                <p className="text-sm text-muted-foreground">{t('settings.periodRemindersHint')}</p>
               </div>
-              <Switch
-                checked={notifications.periodReminder}
-                onCheckedChange={() => handleNotificationChange('periodReminder')}
-              />
+              <Switch checked={notifications.periodReminder} onCheckedChange={() => handleNotificationChange('periodReminder')} />
             </div>
             <div className="flex items-center justify-between border-t border-border pt-4">
               <div>
-                <p className="font-medium">Phase Change Alerts</p>
-                <p className="text-sm text-muted-foreground">
-                  Notify me when my cycle phase changes
-                </p>
+                <p className="font-medium">{t('settings.phaseChangeAlerts')}</p>
+                <p className="text-sm text-muted-foreground">{t('settings.phaseChangeAlertsHint')}</p>
               </div>
-              <Switch
-                checked={notifications.phaseChange}
-                onCheckedChange={() => handleNotificationChange('phaseChange')}
-              />
+              <Switch checked={notifications.phaseChange} onCheckedChange={() => handleNotificationChange('phaseChange')} />
             </div>
             <div className="flex items-center justify-between border-t border-border pt-4">
               <div>
-                <p className="font-medium">Push Notifications</p>
-                <p className="text-sm text-muted-foreground">
-                  Allow notifications from the app
-                </p>
+                <p className="font-medium">{t('settings.pushNotifications')}</p>
+                <p className="text-sm text-muted-foreground">{t('settings.pushNotificationsHint')}</p>
               </div>
-              <Switch
-                checked={notifications.pushNotifications}
-                onCheckedChange={() => handleNotificationChange('pushNotifications')}
-              />
+              <Switch checked={notifications.pushNotifications} onCheckedChange={() => handleNotificationChange('pushNotifications')} />
             </div>
             <div className="flex items-center justify-between border-t border-border pt-4">
               <div>
-                <p className="font-medium">Email Notifications</p>
-                <p className="text-sm text-muted-foreground">
-                  Receive updates via email
-                </p>
+                <p className="font-medium">{t('settings.emailNotifications')}</p>
+                <p className="text-sm text-muted-foreground">{t('settings.emailNotificationsHint')}</p>
               </div>
-              <Switch
-                checked={notifications.emailNotifications}
-                onCheckedChange={() => handleNotificationChange('emailNotifications')}
-              />
+              <Switch checked={notifications.emailNotifications} onCheckedChange={() => handleNotificationChange('emailNotifications')} />
             </div>
           </CardContent>
         </Card>
 
-        {/* Privacy Settings */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Eye className="h-5 w-5" />
-              Privacy & Visibility
+              {t('settings.privacyVisibility')}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <p className="font-medium">Public Profile</p>
-                <p className="text-sm text-muted-foreground">
-                  Other users can see my profile
-                </p>
+                <p className="font-medium">{t('settings.publicProfile')}</p>
+                <p className="text-sm text-muted-foreground">{t('settings.publicProfileHint')}</p>
               </div>
-              <Switch
-                checked={privacy.profilePublic}
-                onCheckedChange={() => handlePrivacyChange('profilePublic')}
-              />
+              <Switch checked={privacy.profilePublic} onCheckedChange={() => handlePrivacyChange('profilePublic')} />
             </div>
             <div className="flex items-center justify-between border-t border-border pt-4">
               <div>
-                <p className="font-medium">Share with Partner</p>
-                <p className="text-sm text-muted-foreground">
-                  Allow my partner to see my cycle information
-                </p>
+                <p className="font-medium">{t('settings.shareWithPartner')}</p>
+                <p className="text-sm text-muted-foreground">{t('settings.shareWithPartnerHint')}</p>
               </div>
-              <Switch
-                checked={privacy.shareWithPartner}
-                onCheckedChange={() => handlePrivacyChange('shareWithPartner')}
-              />
+              <Switch checked={privacy.shareWithPartner} onCheckedChange={() => handlePrivacyChange('shareWithPartner')} />
             </div>
             <div className="flex items-center justify-between border-t border-border pt-4">
               <div>
-                <p className="font-medium">Health Insights</p>
-                <p className="text-sm text-muted-foreground">
-                  Allow us to use your data for health insights
-                </p>
+                <p className="font-medium">{t('settings.healthInsights')}</p>
+                <p className="text-sm text-muted-foreground">{t('settings.healthInsightsHint')}</p>
               </div>
-              <Switch
-                checked={privacy.allowHealthInsight}
-                onCheckedChange={() => handlePrivacyChange('allowHealthInsight')}
-              />
+              <Switch checked={privacy.allowHealthInsight} onCheckedChange={() => handlePrivacyChange('allowHealthInsight')} />
             </div>
           </CardContent>
         </Card>
 
-        {/* Account Settings */}
+        <PrivacyControlsCard />
+        <AppLockCard />
+
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Lock className="h-5 w-5" />
-              Account
+              {t('settings.account')}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
-              <p className="font-medium mb-4">Account Actions</p>
+              <p className="mb-4 font-medium">{t('settings.accountActions')}</p>
               <div className="space-y-2">
                 <Button variant="outline" className="w-full" onClick={handleExportData}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Download My Data
+                  <Download className="mr-2 h-4 w-4" />
+                  {t('settings.downloadMyData')}
                 </Button>
-                <Button
-                  variant="destructive"
-                  className="w-full"
-                  onClick={handleLogout}
-                >
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Logout
+                <Button variant="destructive" className="w-full" onClick={handleLogout}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  {t('nav.logout')}
                 </Button>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Danger Zone */}
         <Card className="border-destructive/50">
           <CardHeader>
-            <CardTitle className="text-destructive">Danger Zone</CardTitle>
+            <CardTitle className="text-destructive">{t('settings.dangerZone')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                These actions cannot be undone. Please proceed with caution.
-              </p>
+              <p className="text-sm text-muted-foreground">{t('settings.dangerZoneHint')}</p>
               <div className="grid grid-cols-1 gap-2">
-                <Button
-                  variant="outline"
-                  className="text-destructive hover:text-destructive"
-                  onClick={handleDeleteAllData}
-                >
-                  <Trash2 className="h-4 w-4 mr-2" />
-                  {confirmDelete === 'data' ? 'Click again to confirm deletion' : 'Delete All Data'}
+                <Button variant="outline" className="text-destructive hover:text-destructive" onClick={handleDeleteAllData}>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  {confirmDelete === 'data' ? t('settings.confirmDeleteData') : t('settings.deleteAllData')}
                 </Button>
               </div>
               {confirmDelete && (
                 <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(null)}>
-                  Cancel
+                  {t('settings.cancel')}
                 </Button>
               )}
             </div>
           </CardContent>
         </Card>
 
-        {/* Information */}
         <Card className="bg-muted/50">
           <CardHeader>
-            <CardTitle className="text-base">App Information</CardTitle>
+            <CardTitle className="text-base">{t('settings.appInformation')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-2 text-sm text-muted-foreground">
               <p>
-                <span className="font-semibold text-foreground">Version:</span> 1.0.0
+                <span className="font-semibold text-foreground">{t('settings.version')}:</span> 1.0.0
               </p>
               <p>
-                <span className="font-semibold text-foreground">Last Updated:</span> February 25, 2026
+                <span className="font-semibold text-foreground">{t('settings.lastUpdated')}:</span> February 25, 2026
               </p>
-              <p className="pt-2">
-                For support, visit our help center or contact support@cyclecompanion.com
-              </p>
+              <p className="pt-2">{t('settings.supportText')}</p>
             </div>
           </CardContent>
         </Card>

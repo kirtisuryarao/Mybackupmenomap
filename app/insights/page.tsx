@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
-import { LayoutWrapper } from '@/components/layout-wrapper'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { useCycleData } from '@/hooks/use-cycle-data'
 import { AlertCircle, Droplet, Brain, Zap, Apple } from 'lucide-react'
+import { useState } from 'react'
+
+import { LayoutWrapper } from '@/components/layout-wrapper'
+import { Badge } from '@/components/ui/badge'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { useCycleData } from '@/hooks/use-cycle-data'
 
 const insightsByPhase = {
   period: {
@@ -208,7 +209,6 @@ export default function InsightsPage() {
   }
 
   const currentPhaseInsights = insightsByPhase[todayInfo.phase]
-  const currentContent = currentPhaseInsights[activeTab as keyof typeof currentPhaseInsights]
 
   const tabIcons = {
     hygiene: Droplet,

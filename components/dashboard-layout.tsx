@@ -1,6 +1,6 @@
 'use client'
 
-import { AlertCircle, Calendar, Heart, Pill, TrendingUp } from 'lucide-react'
+import { AlertCircle, TrendingUp } from 'lucide-react'
 import { ReactNode } from 'react'
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'

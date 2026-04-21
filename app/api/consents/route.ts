@@ -5,7 +5,7 @@ import { createInternalErrorResponse } from '@/lib/api-error'
 import { authenticateRequest } from '@/lib/middleware'
 import { grantConsent, listUserConsents, revokeConsent } from '@/lib/services/consent-service'
 
-const consentScopeSchema = z.enum(['cycle', 'symptoms'])
+const consentScopeSchema = z.enum(['cycle', 'symptoms', 'mood', 'notes'])
 
 const grantConsentSchema = z.object({
   partnerId: z.string().min(1, 'Partner id is required'),

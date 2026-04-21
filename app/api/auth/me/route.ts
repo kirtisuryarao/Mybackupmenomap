@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { authenticateRequest } from '@/lib/middleware'
+
 import { createInternalErrorResponse } from '@/lib/api-error'
 import { canUseFileAuthFallback, isPrismaConnectionError } from '@/lib/db-fallback'
 import { findFileUserById, toApiUser } from '@/lib/file-auth-store'
+import { authenticateRequest } from '@/lib/middleware'
+import { prisma } from '@/lib/prisma'
 
 export async function GET(request: NextRequest) {
   try {
@@ -25,7 +26,9 @@ export async function GET(request: NextRequest) {
           name: true,
           age: true,
           cycleLength: true,
+          periodLength: true,
           periodDuration: true,
+          menopauseStage: true,
           createdAt: true,
           partners: {
             select: {

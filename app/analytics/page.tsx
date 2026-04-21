@@ -1,19 +1,20 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { LayoutWrapper } from '@/components/layout-wrapper'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { authenticatedFetch } from '@/lib/auth-client'
-import {
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
-} from 'recharts'
 import {
   Activity, AlertTriangle, Download, TrendingUp,
   Thermometer, Moon, Heart, Calendar,
 } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import {
+  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid,
+  Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
+} from 'recharts'
+
+import { LayoutWrapper } from '@/components/layout-wrapper'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { authenticatedFetch } from '@/lib/auth-client'
 
 interface Analytics {
   avgCycleLength: number

@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken'
 import { NextRequest, NextResponse } from 'next/server'
+
 import type { SignOptions } from 'jsonwebtoken'
 
 export interface PartnerJWTPayload {

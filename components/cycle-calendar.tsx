@@ -1,12 +1,16 @@
 'use client'
 
-import { useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useState } from 'react'
+
+import { TrackModal } from '@/components/track-modal'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { getMonthCycleDays, CyclePhase } from '@/lib/cycle-calculations'
 import { useCycleData } from '@/hooks/use-cycle-data'
-import { TrackModal } from '@/components/track-modal'
+import { useLogs } from '@/hooks/use-logs'
+import { useProfileData } from '@/hooks/use-profile-data'
+import { getMonthCycleDays, CyclePhase } from '@/lib/cycle-calculations'
+import { isMenopauseMode } from '@/lib/menopause'
 
 const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const PHASE_COLORS: Record<CyclePhase, string> = {
@@ -29,11 +33,16 @@ interface CycleCalendarProps {
 
 export function CycleCalendar({ onRefresh }: CycleCalendarProps) {
   const { cycleData, isLoading } = useCycleData()
+  const { logs, isLoading: logsLoading } = useLogs()
+  const { profile, loading: profileLoading } = useProfileData()
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [isTrackModalOpen, setIsTrackModalOpen] = useState(false)
 
-  if (isLoading || !cycleData) {
+  const menopauseModeActive = isMenopauseMode(profile?.menopauseStage)
+  const hasCycleCalendar = Boolean(cycleData && !menopauseModeActive)
+
+  if (isLoading || logsLoading || profileLoading) {
     return (
       <Card>
         <CardHeader>
@@ -45,13 +54,26 @@ export function CycleCalendar({ onRefresh }: CycleCalendarProps) {
 
   const year = currentDate.getFullYear()
   const month = currentDate.getMonth()
-  const cycleStartDates = cycleData.cycleStarts?.map((s) => new Date(s))
-  const monthDays = getMonthCycleDays(
-    year,
-    month,
-    new Date(cycleData.lastPeriodDate),
-    cycleData.cycleLength,
-    cycleStartDates
+  const cycleStartDates = cycleData?.cycleStarts?.map((s) => new Date(s))
+  const monthDays = hasCycleCalendar
+    ? getMonthCycleDays(
+        year,
+        month,
+        new Date(cycleData!.lastPeriodDate),
+        cycleData!.cycleLength,
+        cycleStartDates
+      )
+    : Array.from({ length: new Date(year, month + 1, 0).getDate() }, (_, index) => {
+        const date = new Date(year, month, index + 1)
+        return {
+          date,
+          phase: 'luteal' as CyclePhase,
+          dayOfCycle: index + 1,
+        }
+      })
+
+  const logByDate = new Map(
+    logs.map((log) => [log.date, log])
   )
 
   const firstDayOfMonth = new Date(year, month, 1).getDay()
@@ -129,7 +151,17 @@ export function CycleCalendar({ onRefresh }: CycleCalendarProps) {
             {monthDays.map((dayInfo, idx) => {
               const isToday =
                 dayInfo.date.toDateString() === new Date().toDateString()
-              const phaseColor = PHASE_COLORS[dayInfo.phase]
+              const isoDate = dayInfo.date.toISOString().split('T')[0]
+              const log = logByDate.get(isoDate)
+              const hasPeriod = Boolean(log?.flow)
+              const hasSymptoms = Boolean(log?.symptoms.length || log?.moodText || log?.sleepHours)
+              const phaseColor = hasCycleCalendar
+                ? PHASE_COLORS[dayInfo.phase]
+                : hasPeriod
+                  ? 'bg-rose-100 hover:bg-rose-200 text-rose-900'
+                  : hasSymptoms
+                    ? 'bg-teal-50 hover:bg-teal-100 text-teal-900'
+                    : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-100'
 
               return (
                 <button
@@ -138,36 +170,59 @@ export function CycleCalendar({ onRefresh }: CycleCalendarProps) {
                   className={`aspect-square flex flex-col items-center justify-center rounded-lg p-1 transition-all cursor-pointer ${phaseColor} ${
                     isToday ? 'ring-2 ring-primary shadow-md' : 'hover:ring-2 hover:ring-pink-400'
                   }`}
-                  title={`${PHASE_LABELS[dayInfo.phase]} - Day ${dayInfo.dayOfCycle}`}
+                  title={hasCycleCalendar ? `${PHASE_LABELS[dayInfo.phase]} - Day ${dayInfo.dayOfCycle}` : log ? 'Health log recorded' : 'Add health log'}
                 >
                   <span className="text-xs font-semibold">
                     {dayInfo.date.getDate()}
                   </span>
-                  <span className="text-xs">D{dayInfo.dayOfCycle}</span>
+                  {hasCycleCalendar ? (
+                    <span className="text-xs">D{dayInfo.dayOfCycle}</span>
+                  ) : hasPeriod ? (
+                    <span className="text-[10px] font-semibold">Period</span>
+                  ) : hasSymptoms ? (
+                    <span className="text-[10px] font-semibold">Log</span>
+                  ) : null}
                 </button>
               )
             })}
           </div>
 
-          {/* Legend */}
-          <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-            {(Object.entries(PHASE_LABELS) as Array<[CyclePhase, string]>).map(
-              ([phase, label]) => (
-                <div key={phase} className="flex items-center gap-2">
-                  <div
-                    className={`h-3 w-3 rounded-full ${
-                      PHASE_COLORS[phase].split(' ')[0]
-                    }`}
-                  />
-                  <span className="text-xs text-muted-foreground">{label}</span>
-                </div>
-              )
-            )}
-          </div>
+          {hasCycleCalendar ? (
+            <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+              {(Object.entries(PHASE_LABELS) as Array<[CyclePhase, string]>).map(
+                ([phase, label]) => (
+                  <div key={phase} className="flex items-center gap-2">
+                    <div
+                      className={`h-3 w-3 rounded-full ${
+                        PHASE_COLORS[phase].split(' ')[0]
+                      }`}
+                    />
+                    <span className="text-xs text-muted-foreground">{label}</span>
+                  </div>
+                )
+              )}
+            </div>
+          ) : (
+            <div className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-3">
+              <div className="flex items-center gap-2">
+                <div className="h-3 w-3 rounded-full bg-rose-100" />
+                <span className="text-xs text-muted-foreground">Period logged</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-3 w-3 rounded-full bg-teal-100" />
+                <span className="text-xs text-muted-foreground">Symptoms tracked</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="h-3 w-3 rounded-full border border-slate-200 bg-white" />
+                <span className="text-xs text-muted-foreground">No entry yet</span>
+              </div>
+            </div>
+          )}
 
-          {/* Help text */}
           <p className="mt-6 text-center text-sm text-muted-foreground">
-            💡 Click any date to log your health data
+            {hasCycleCalendar
+              ? 'Click any date to log your health data.'
+              : 'Click any date to track symptoms, sleep, mood, and optional period details.'}
           </p>
         </CardContent>
       </Card>

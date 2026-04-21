@@ -1,13 +1,14 @@
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { AlertCircle } from 'lucide-react'
 import Link from 'next/link'
+
 import { CycleCalendar } from '@/components/cycle-calendar'
 import { DailyInsightCard } from '@/components/daily-insight-card'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 export const metadata = {
-  title: 'Partner - Cycle Companion',
-  description: 'View your partner’s cycle overview',
+  title: 'Partner - MenoMap',
+  description: 'View your partner’s health overview',
 }
 
 export default function PartnerPage() {
@@ -16,7 +17,7 @@ export default function PartnerPage() {
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-foreground mb-2">Welcome</h1>
-        <p className="text-muted-foreground">View your partner's cycle details below</p>
+        <p className="text-muted-foreground">View your partner's health details below</p>
       </div>
 
       {/* Partner's Calendar heading */}

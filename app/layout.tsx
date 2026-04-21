@@ -1,15 +1,19 @@
-import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
+import { Geist, Geist_Mono } from 'next/font/google'
+
+import { AppProviders } from '@/components/app-providers'
 import { ChatWidget } from '@/components/chat-widget'
+import { AppLockGate } from '@/components/privacy/app-lock-gate'
+
+import type { Metadata } from 'next'
 import './globals.css'
 
 const _geist = Geist({ subsets: ["latin"] });
 const _geistMono = Geist_Mono({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: 'Cycle Companion - Women\'s Health Tracking',
-  description: 'Track your menstrual cycle, get personalized insights, and manage your health with AI-powered support.',
+  title: 'MenoMap - Menopause-Aware Health Tracking',
+  description: 'Track symptoms, sleep, mood, and cycle data with menopause-aware insights and private health tools.',
   generator: 'v0.app',
   icons: {
     icon: [
@@ -36,9 +40,12 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className="font-sans antialiased">
-        {children}
+        <AppProviders>
+          <AppLockGate />
+          {children}
+        </AppProviders>
         <ChatWidget />
         <Analytics />
       </body>

@@ -1,21 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { hashPassword, generateTokenPair } from '@/lib/auth'
+import { z } from 'zod'
+
 import { createInternalErrorResponse } from '@/lib/api-error'
+import { hashPassword, generateTokenPair } from '@/lib/auth'
 import { canUseFileAuthFallback, isPrismaConnectionError } from '@/lib/db-fallback'
 import {
   createFileRefreshToken,
   createFileUser,
   findFileUserByEmail,
 } from '@/lib/file-auth-store'
-import { z } from 'zod'
+import { prisma } from '@/lib/prisma'
+
 
 const signupSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   email: z.string().email('Invalid email address'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
-  lastPeriodDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format'),
+  age: z.number().int().min(1).max(120),
+  lastPeriodDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format').optional(),
   cycleLength: z.number().int().min(20).max(40),
+  periodLength: z.number().int().min(1).max(15),
+  menopauseStage: z.enum(['regular', 'irregular', 'perimenopause', 'menopause']),
 })
 
 export async function POST(request: NextRequest) {
@@ -25,7 +30,9 @@ export async function POST(request: NextRequest) {
     // Validate input
     const validatedData = signupSchema.parse({
       ...body,
+      age: parseInt(body.age),
       cycleLength: parseInt(body.cycleLength),
+      periodLength: parseInt(body.periodLength),
     })
 
     try {
@@ -52,18 +59,22 @@ export async function POST(request: NextRequest) {
             email: validatedData.email,
             passwordHash,
             name: validatedData.name,
+            age: validatedData.age,
             cycleLength: validatedData.cycleLength,
+            periodDuration: validatedData.periodLength,
+            menopauseStage: validatedData.menopauseStage,
           },
         })
 
-        // Create initial cycle entry
-        await tx.cycleEntry.create({
-          data: {
-            userId: user.id,
-            lastPeriodDate: new Date(validatedData.lastPeriodDate),
-            cycleLength: validatedData.cycleLength,
-          },
-        })
+        if (validatedData.lastPeriodDate) {
+          await tx.cycleEntry.create({
+            data: {
+              userId: user.id,
+              lastPeriodDate: new Date(validatedData.lastPeriodDate),
+              cycleLength: validatedData.cycleLength,
+            },
+          })
+        }
 
         // Create default notification settings
         await tx.notificationSettings.create({
@@ -103,7 +114,10 @@ export async function POST(request: NextRequest) {
             id: result.id,
             email: result.email,
             name: result.name,
+            age: result.age,
             cycleLength: result.cycleLength,
+            periodLength: result.periodLength,
+            menopauseStage: result.menopauseStage,
           },
           ...tokens,
         },
@@ -125,7 +139,10 @@ export async function POST(request: NextRequest) {
           email: validatedData.email,
           passwordHash,
           name: validatedData.name,
+          age: validatedData.age,
           cycleLength: validatedData.cycleLength,
+          periodLength: validatedData.periodLength,
+          menopauseStage: validatedData.menopauseStage,
           lastPeriodDate: validatedData.lastPeriodDate,
         })
 
@@ -146,7 +163,10 @@ export async function POST(request: NextRequest) {
               id: result.id,
               email: result.email,
               name: result.name,
+              age: result.age,
               cycleLength: result.cycleLength,
+              periodLength: result.periodLength,
+              menopauseStage: result.menopauseStage,
             },
             ...tokens,
           },

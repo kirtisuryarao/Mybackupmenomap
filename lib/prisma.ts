@@ -1,6 +1,7 @@
+import { PrismaPg } from '@prisma/adapter-pg'
 import { PrismaClient } from '@prisma/client'
 import { Pool } from 'pg'
-import { PrismaPg } from '@prisma/adapter-pg'
+
 import { AppSetupError } from '@/lib/setup-error'
 
 const globalForPrisma = globalThis as unknown as {

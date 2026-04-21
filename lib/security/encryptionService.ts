@@ -14,7 +14,6 @@ import crypto from 'crypto'
 const ENCRYPTION_ALGORITHM = 'aes-256-gcm'
 const SALT_LENGTH = 16
 const IV_LENGTH = 12
-const TAG_LENGTH = 16
 const KEY_LENGTH = 32
 
 interface EncryptedData {
@@ -81,7 +80,10 @@ export function encryptField(plaintext: string | null | undefined): string | nul
     return Buffer.from(JSON.stringify(encryptedData)).toString('base64')
   } catch (error) {
     console.error('Encryption failed:', error)
-    throw new Error(`Failed to encrypt field: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(
+      `Failed to encrypt field: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      { cause: error }
+    )
   }
 }
 
@@ -116,7 +118,10 @@ export function decryptField(encryptedBase64: string | null | undefined): string
     return decrypted
   } catch (error) {
     console.error('Decryption failed:', error)
-    throw new Error(`Failed to decrypt field: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    throw new Error(
+      `Failed to decrypt field: ${error instanceof Error ? error.message : 'Unknown error'}`,
+      { cause: error }
+    )
   }
 }
 

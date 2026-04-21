@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
-import { verifyRefreshToken, generateTokenPair } from '@/lib/auth'
+import { z } from 'zod'
+
 import { createInternalErrorResponse } from '@/lib/api-error'
+import { verifyRefreshToken, generateTokenPair } from '@/lib/auth'
 import { canUseFileAuthFallback, isPrismaConnectionError } from '@/lib/db-fallback'
 import {
   createFileRefreshToken,
   deleteFileRefreshTokenById,
   findFileRefreshToken,
 } from '@/lib/file-auth-store'
-import { z } from 'zod'
+import { prisma } from '@/lib/prisma'
+
 
 const refreshSchema = z.object({
   refreshToken: z.string().min(1, 'Refresh token is required'),
@@ -22,10 +24,9 @@ export async function POST(request: NextRequest) {
     const validatedData = refreshSchema.parse(body)
 
     // Verify refresh token
-    let payload
     try {
-      payload = verifyRefreshToken(validatedData.refreshToken)
-    } catch (error) {
+      verifyRefreshToken(validatedData.refreshToken)
+    } catch (_error) {
       return NextResponse.json(
         { error: 'Invalid or expired refresh token' },
         { status: 401 }

@@ -21,8 +21,11 @@ interface SafeUser {
   id: string
   email: string
   name: string
+  age: number | null
   cycleLength: number
+  periodLength: number
   periodDuration: number
+  menopauseStage: 'regular' | 'irregular' | 'perimenopause' | 'menopause'
 }
 
 type ServiceSuccess<T> = { success: true; data: T }
@@ -33,8 +36,11 @@ export interface SignupInput {
   name: string
   email: string
   password: string
-  lastPeriodDate: string
+  age: number
+  lastPeriodDate?: string
   cycleLength: number
+  periodLength: number
+  menopauseStage: 'regular' | 'irregular' | 'perimenopause' | 'menopause'
 }
 
 export interface LoginInput {
@@ -51,15 +57,21 @@ function toSafeUser(user: {
   id: string
   email: string
   name: string
+  age?: number | null
   cycleLength: number
+  periodLength?: number | null
   periodDuration?: number | null
+  menopauseStage?: 'regular' | 'irregular' | 'perimenopause' | 'menopause' | null
 }): SafeUser {
   return {
     id: user.id,
     email: user.email,
     name: user.name,
+    age: user.age ?? null,
     cycleLength: user.cycleLength,
+    periodLength: user.periodLength ?? 5,
     periodDuration: user.periodDuration ?? 5,
+    menopauseStage: user.menopauseStage ?? 'regular',
   }
 }
 
@@ -97,17 +109,23 @@ export async function signupUser(input: SignupInput): Promise<ServiceResult<Auth
           email: normalizedEmail,
           passwordHash,
           name: input.name,
+          age: input.age,
           cycleLength: input.cycleLength,
+          periodLength: input.periodLength,
+          periodDuration: input.periodLength,
+          menopauseStage: input.menopauseStage,
         },
       })
 
-      await tx.cycleEntry.create({
-        data: {
-          userId: createdUser.id,
-          lastPeriodDate: new Date(input.lastPeriodDate),
-          cycleLength: input.cycleLength,
-        },
-      })
+      if (input.lastPeriodDate) {
+        await tx.cycleEntry.create({
+          data: {
+            userId: createdUser.id,
+            lastPeriodDate: new Date(input.lastPeriodDate),
+            cycleLength: input.cycleLength,
+          },
+        })
+      }
 
       await tx.notificationSettings.create({ data: { userId: createdUser.id } })
       await tx.privacySettings.create({ data: { userId: createdUser.id } })
@@ -134,7 +152,10 @@ export async function signupUser(input: SignupInput): Promise<ServiceResult<Auth
       email: normalizedEmail,
       passwordHash,
       name: input.name,
+      age: input.age,
       cycleLength: input.cycleLength,
+      periodLength: input.periodLength,
+      menopauseStage: input.menopauseStage,
       lastPeriodDate: input.lastPeriodDate,
     })
 
