@@ -346,6 +346,58 @@ export function computePeriodLengthsFromLogs(
 }
 
 /**
+ * Compute latest and current period length from flow logs.
+ * - latestPeriodLength: most recent period cluster length
+ * - currentPeriodLength: same as latest when user is likely still bleeding
+ */
+export function computeCurrentPeriodLengthFromLogs(
+  logs: { date: Date; flow: string | null }[],
+  referenceDate: Date = new Date()
+): {
+  latestPeriodLength: number | null
+  currentPeriodLength: number | null
+  isCurrentlyBleeding: boolean
+} {
+  const flowDays = logs
+    .filter(l => l.flow !== null && l.flow !== '')
+    .map(l => toMidnight(l.date))
+    .sort((a, b) => a.getTime() - b.getTime())
+
+  if (flowDays.length === 0) {
+    return {
+      latestPeriodLength: null,
+      currentPeriodLength: null,
+      isCurrentlyBleeding: false,
+    }
+  }
+
+  const periods: Date[][] = [[flowDays[0]]]
+
+  for (let i = 1; i < flowDays.length; i++) {
+    const diff = safeDayDiff(flowDays[i - 1], flowDays[i])
+    if (diff <= 2) {
+      periods[periods.length - 1].push(flowDays[i])
+    } else {
+      periods.push([flowDays[i]])
+    }
+  }
+
+  const latestPeriod = periods[periods.length - 1]
+  const latestStart = latestPeriod[0]
+  const latestEnd = latestPeriod[latestPeriod.length - 1]
+  const latestPeriodLength = safeDayDiff(latestStart, latestEnd) + 1
+
+  const daysSinceLastFlow = safeDayDiff(latestEnd, referenceDate)
+  const isCurrentlyBleeding = daysSinceLastFlow <= 1
+
+  return {
+    latestPeriodLength,
+    currentPeriodLength: isCurrentlyBleeding ? latestPeriodLength : null,
+    isCurrentlyBleeding,
+  }
+}
+
+/**
  * Determine if a date falls within the fertile window.
  */
 export function isInFertileWindow(

@@ -49,7 +49,7 @@ export function usePrediction(): UsePredictionReturn {
       }
 
       const data = await response.json()
-      console.error('[usePrediction] Loaded prediction:', data)
+      console.log('[usePrediction] Loaded prediction:', data)
       setPrediction(data)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch prediction')

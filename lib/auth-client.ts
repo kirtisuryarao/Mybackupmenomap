@@ -120,12 +120,19 @@ export async function signup(data: {
   periodLength: number
   menopauseStage: 'regular' | 'irregular' | 'perimenopause' | 'menopause'
 }): Promise<AuthResponse> {
+  const normalizedEmail = data.email.trim().toLowerCase()
+
   const response = await fetch('/api/auth/signup', {
     method: 'POST',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(data),
+    body: JSON.stringify({
+      ...data,
+      email: normalizedEmail,
+      name: data.name.trim(),
+    }),
   })
 
   if (!response.ok) {
@@ -145,12 +152,15 @@ export async function signup(data: {
  * Login user
  */
 export async function login(email: string, password: string): Promise<AuthResponse> {
+  const normalizedEmail = email.trim().toLowerCase()
+
   const response = await fetch('/api/auth/login', {
     method: 'POST',
+    credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email: normalizedEmail, password }),
   })
 
   if (!response.ok) {
@@ -175,6 +185,7 @@ export async function logout(): Promise<void> {
   try {
     await fetch('/api/auth/logout', {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         ...(refreshToken ? { Authorization: `Bearer ${refreshToken}` } : {}),
@@ -201,17 +212,14 @@ export async function refreshAccessToken(): Promise<AuthTokens> {
 
   refreshPromise = (async () => {
     const refreshToken = getRefreshToken()
-    
-    if (!refreshToken) {
-      throw new Error('No refresh token available')
-    }
 
     const response = await fetch('/api/auth/refresh', {
       method: 'POST',
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ refreshToken }),
+      body: JSON.stringify(refreshToken ? { refreshToken } : {}),
     })
 
     if (!response.ok) {
@@ -234,13 +242,19 @@ export async function refreshAccessToken(): Promise<AuthTokens> {
  * Get current user data
  */
 export async function getCurrentUser(): Promise<User> {
-  const accessToken = getAccessToken()
-  
+  let accessToken = getAccessToken()
+
   if (!accessToken) {
-    throw new Error('Not authenticated')
+    try {
+      const refreshed = await refreshAccessToken()
+      accessToken = refreshed.accessToken
+    } catch (error) {
+      throw new Error('Not authenticated', { cause: error })
+    }
   }
 
   const response = await fetch('/api/auth/me', {
+    credentials: 'include',
     headers: {
       Authorization: `Bearer ${accessToken}`,
     },
@@ -252,6 +266,7 @@ export async function getCurrentUser(): Promise<User> {
       await refreshAccessToken()
       // Retry with new token
       const retryResponse = await fetch('/api/auth/me', {
+        credentials: 'include',
         headers: {
           Authorization: `Bearer ${getAccessToken()}`,
         },
@@ -284,14 +299,20 @@ export async function authenticatedFetch(
   url: string,
   options: RequestInit = {}
 ): Promise<Response> {
-  const accessToken = getAccessToken()
-  
+  let accessToken = getAccessToken()
+
   if (!accessToken) {
-    throw new Error('Not authenticated')
+    try {
+      const refreshed = await refreshAccessToken()
+      accessToken = refreshed.accessToken
+    } catch (error) {
+      throw new Error('Not authenticated', { cause: error })
+    }
   }
 
   const response = await fetch(url, {
     ...options,
+    credentials: 'include',
     headers: {
       ...options.headers,
       Authorization: `Bearer ${accessToken}`,
@@ -305,6 +326,7 @@ export async function authenticatedFetch(
       // Retry with new token
       return fetch(url, {
         ...options,
+        credentials: 'include',
         headers: {
           ...options.headers,
           Authorization: `Bearer ${getAccessToken()}`,

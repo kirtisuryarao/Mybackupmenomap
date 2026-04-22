@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { createInternalErrorResponse } from '@/lib/api-error'
 import { getCyclePhase } from '@/lib/cycle-calculations'
-import { computeAnalytics, computePeriodLengthsFromLogs } from '@/lib/cycle-engine'
+import {
+  computeAnalytics,
+  computeCurrentPeriodLengthFromLogs,
+  computePeriodLengthsFromLogs,
+} from '@/lib/cycle-engine'
 import { authenticateRequest } from '@/lib/middleware'
 import { prisma } from '@/lib/prisma'
 
@@ -43,6 +47,7 @@ export async function GET(request: NextRequest) {
     })
 
     const logBasedPeriods = computePeriodLengthsFromLogs(allFlowLogs)
+    const currentPeriod = computeCurrentPeriodLengthFromLogs(allFlowLogs)
 
     // Use log-based period data when it's more complete than cycle-table data
     if (logBasedPeriods.periodLengths.length > 0) {
@@ -136,6 +141,9 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       ...analytics,
+      currentPeriodLength: currentPeriod.currentPeriodLength,
+      latestPeriodLength: currentPeriod.latestPeriodLength,
+      isCurrentlyBleeding: currentPeriod.isCurrentlyBleeding,
       moodTrends: moodCounts,
       symptomTrends: symptomCounts,
       temperatureTrends: temperatures,

@@ -5,6 +5,7 @@ import { createInternalErrorResponse } from '@/lib/api-error'
 import { hashPassword } from '@/lib/auth'
 import { authenticateRequest } from '@/lib/middleware'
 import { prisma } from '@/lib/prisma'
+import { grantConsent } from '@/lib/services/consent-service'
 
 const addPartnerSchema = z.object({
   name: z.string().min(1, 'Partner name is required'),
@@ -77,6 +78,14 @@ export async function POST(request: NextRequest) {
         email: true,
         createdAt: true,
       },
+    })
+
+    // Ensure partner access works immediately with the baseline cycle scope.
+    await grantConsent({
+      userId: user.userId,
+      partnerId: partner.id,
+      scopes: ['cycle'],
+      expiresAt: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
     })
 
     return NextResponse.json(partner, { status: 201 })

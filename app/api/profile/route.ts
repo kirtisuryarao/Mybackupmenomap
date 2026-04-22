@@ -33,7 +33,6 @@ export async function GET(request: NextRequest) {
         name: true,
         age: true,
         cycleLength: true,
-        periodLength: true,
         periodDuration: true,
         menopauseStage: true,
         partners: {
@@ -54,7 +53,10 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    return NextResponse.json(userData)
+    return NextResponse.json({
+      ...userData,
+      periodLength: userData.periodDuration,
+    })
   } catch (error) {
     return createInternalErrorResponse(error, 'Get profile error', 'Failed to get profile')
   }
@@ -80,7 +82,6 @@ export async function PATCH(request: NextRequest) {
         ...(validatedData.age !== undefined && { age: validatedData.age }),
         ...(validatedData.cycleLength && { cycleLength: validatedData.cycleLength }),
         ...(validatedData.periodLength && {
-          periodLength: validatedData.periodLength,
           periodDuration: validatedData.periodLength,
         }),
         ...(validatedData.periodDuration && { periodDuration: validatedData.periodDuration }),
@@ -92,13 +93,15 @@ export async function PATCH(request: NextRequest) {
         name: true,
         age: true,
         cycleLength: true,
-        periodLength: true,
         periodDuration: true,
         menopauseStage: true,
       },
     })
 
-    return NextResponse.json(updatedUser)
+    return NextResponse.json({
+      ...updatedUser,
+      periodLength: updatedUser.periodDuration,
+    })
   } catch (error) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(

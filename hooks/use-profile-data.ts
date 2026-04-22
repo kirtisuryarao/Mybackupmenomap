@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 
-import { authenticatedFetch } from '@/lib/auth-client';
+import { authenticatedFetch, isAuthenticated } from '@/lib/auth-client';
 
 export interface Partner {
   id: string;
@@ -30,6 +30,10 @@ export function useProfileData() {
   useEffect(() => {
     async function loadProfileData() {
       try {
+        if (!isAuthenticated()) {
+          return;
+        }
+
         const response = await authenticatedFetch('/api/profile');
         if (response.ok) {
           const data = await response.json();
@@ -52,7 +56,9 @@ export function useProfileData() {
           );
         }
       } catch (error) {
-        console.error('Error loading profile:', error);
+        if (!(error instanceof Error && error.message === 'Not authenticated')) {
+          console.error('Error loading profile:', error);
+        }
       } finally {
         setLoading(false);
       }

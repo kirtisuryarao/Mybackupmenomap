@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-import { getPartnerTokenFromRequest, verifyPartnerRefreshToken } from '@/lib/partner-auth'
-import { prisma } from '@/lib/prisma'
+import { clearPartnerAuthCookies } from '@/lib/partner-auth-cookies'
+import { verifyPartnerRefreshToken } from '@/lib/partner-auth'
+import { logoutPartner } from '@/lib/services/partner-auth-service'
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,26 +15,13 @@ export async function POST(request: NextRequest) {
     if (refreshToken) {
       const payload = verifyPartnerRefreshToken(refreshToken)
       if (payload?.partnerId) {
-        await prisma.partnerRefreshToken.deleteMany({
-          where: {
-            partnerId: payload.partnerId,
-            token: refreshToken,
-          },
-        })
+        await logoutPartner(payload.partnerId, refreshToken)
       }
     }
 
-    const accessToken = getPartnerTokenFromRequest(request)
-    if (accessToken) {
-      // Best effort cleanup of stale partner refresh tokens older than now.
-      await prisma.partnerRefreshToken.deleteMany({
-        where: {
-          expiresAt: { lt: new Date() },
-        },
-      })
-    }
-
-    return NextResponse.json({ success: true })
+    const response = NextResponse.json({ success: true })
+    clearPartnerAuthCookies(response)
+    return response
   } catch (error) {
     console.error('Partner logout error:', error)
     return NextResponse.json({ error: 'Failed to logout partner' }, { status: 500 })

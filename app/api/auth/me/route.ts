@@ -26,7 +26,6 @@ export async function GET(request: NextRequest) {
           name: true,
           age: true,
           cycleLength: true,
-          periodLength: true,
           periodDuration: true,
           menopauseStage: true,
           createdAt: true,
@@ -50,7 +49,10 @@ export async function GET(request: NextRequest) {
         )
       }
 
-      return NextResponse.json(userData)
+      return NextResponse.json({
+        ...userData,
+        periodLength: userData.periodDuration,
+      })
     } catch (error) {
       if (isPrismaConnectionError(error) && canUseFileAuthFallback()) {
         const localUser = await findFileUserById(user.userId)

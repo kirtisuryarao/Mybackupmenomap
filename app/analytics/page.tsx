@@ -31,6 +31,9 @@ interface Analytics {
   totalLogsRecorded: number
   phaseSymptomCorrelation?: Record<string, Record<string, number>>
   phaseMoodCorrelation?: Record<string, Record<string, number>>
+  currentPeriodLength?: number | null
+  latestPeriodLength?: number | null
+  isCurrentlyBleeding?: boolean
 }
 
 interface Prediction {
@@ -272,7 +275,21 @@ export default function AnalyticsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {analytics?.periodLengths && analytics.periodLengths.length > 1 ? (
+              {analytics?.isCurrentlyBleeding && analytics.currentPeriodLength ? (
+                <>
+                  <div className="text-3xl font-bold">{analytics.currentPeriodLength}</div>
+                  <p className="text-xs text-muted-foreground">
+                    days in current period
+                  </p>
+                </>
+              ) : analytics?.latestPeriodLength ? (
+                <>
+                  <div className="text-3xl font-bold">{analytics.latestPeriodLength}</div>
+                  <p className="text-xs text-muted-foreground">
+                    days in most recent period
+                  </p>
+                </>
+              ) : analytics?.periodLengths && analytics.periodLengths.length > 1 ? (
                 <>
                   <div className="text-3xl font-bold">{analytics.avgPeriodLength}</div>
                   <p className="text-xs text-muted-foreground">

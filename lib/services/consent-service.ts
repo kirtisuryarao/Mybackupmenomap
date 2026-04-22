@@ -218,7 +218,7 @@ export async function assertPartnerConsent(
     })
 
     if (!consent) {
-      return { allowed: false, status: 403, error: 'Consent missing, expired, or insufficient for this data' }
+      return allowLinkedPartnerFallback(partnerId, requiredScopes)
     }
 
     if (consent.partner.userId !== consent.userId) {

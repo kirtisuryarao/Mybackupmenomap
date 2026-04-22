@@ -210,6 +210,16 @@ export default function TrackingPage() {
               <p className="mt-1 text-sm text-slate-500">
                 Symptoms, mood, sleep, notes, and optional period details all live in one timeline.
               </p>
+              {profile?.menopauseStage === 'perimenopause' && (
+                <p className="mt-2 text-xs text-orange-700">
+                  Perimenopause can still include real periods, but timing and flow often become less predictable. Log bleeding on the day it starts so the timeline stays accurate.
+                </p>
+              )}
+              {profile?.menopauseStage === 'menopause' && (
+                <p className="mt-2 text-xs text-orange-700">
+                  After menopause, bleeding is not considered a normal cycle event. You can still log it for record-keeping, but it should be discussed with a clinician.
+                </p>
+              )}
             </div>
             {menopauseModeActive && (
               <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">Menopause mode active</Badge>

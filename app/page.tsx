@@ -3,20 +3,29 @@
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 
+import { refreshAccessToken } from '@/lib/auth-client'
+
 export default function Home() {
   const router = useRouter()
 
   useEffect(() => {
-    // Check if user is logged in via access_token (matches auth-client.ts)
-    const accessToken = localStorage.getItem('access_token')
-    
-    if (accessToken) {
-      // Redirect to dashboard
-      router.push('/home')
-    } else {
-      // Redirect to login
-      router.push('/auth/login')
+    async function bootstrapSession() {
+      const accessToken = localStorage.getItem('access_token')
+
+      if (accessToken) {
+        router.push('/home')
+        return
+      }
+
+      try {
+        await refreshAccessToken()
+        router.push('/home')
+      } catch {
+        router.push('/auth/login')
+      }
     }
+
+    void bootstrapSession()
   }, [router])
 
   return (

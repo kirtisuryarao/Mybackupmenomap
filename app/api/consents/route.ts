@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     const validated = grantConsentSchema.parse(body)
     const expiresAt = validated.expiresAt
       ? new Date(validated.expiresAt)
-      : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+      : new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)
 
     const result = await grantConsent({
       userId: authResult.user.userId,

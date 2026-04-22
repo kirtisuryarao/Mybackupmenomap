@@ -43,7 +43,6 @@ export function useCycleData(): UseCycleDataReturn {
     const initStore = async () => {
       try {
         if (!store.cycleData && !store.isLoading) {
-          console.error('[useCycleData] Initializing store with fresh data')
           await store.refreshCycle()
         }
       } catch (error) {
@@ -77,7 +76,6 @@ export function useCycleData(): UseCycleDataReturn {
   // Listen for window events to refresh
   useEffect(() => {
     const onCycleChanged = () => {
-      console.error('[useCycleData] menomap:logs-updated event received, refreshing...')
       store.refreshCycle()
     }
 
@@ -90,7 +88,6 @@ export function useCycleData(): UseCycleDataReturn {
   const setCycleData = useCallback(
     async (data: CycleData) => {
       try {
-        console.error('[useCycleData] Setting cycle data:', data)
         await authenticatedFetch('/api/cycle', {
           method: 'POST',
           headers: {
@@ -101,11 +98,9 @@ export function useCycleData(): UseCycleDataReturn {
             cycleLength: data.cycleLength,
           }),
         })
-        console.error('[useCycleData] Cycle set successful, refreshing store...')
         // Refresh from store after successful update
         await store.refreshCycle()
         // Dispatch event to trigger all other listeners
-        console.error('[useCycleData] Dispatching menomap:logs-updated event')
         window.dispatchEvent(new CustomEvent('menomap:logs-updated'))
       } catch (error) {
         console.error('[useCycleData] Failed to save cycle data:', error)
@@ -118,7 +113,6 @@ export function useCycleData(): UseCycleDataReturn {
   const updateCycleData = useCallback(
     async (lastPeriodDate: string, cycleLength: number) => {
       try {
-        console.error('[useCycleData] Updating cycle data:', { lastPeriodDate, cycleLength })
         await authenticatedFetch('/api/cycle', {
           method: 'POST',
           headers: {
@@ -129,11 +123,9 @@ export function useCycleData(): UseCycleDataReturn {
             cycleLength,
           }),
         })
-        console.error('[useCycleData] Cycle update successful, refreshing store...')
         // Refresh from store after successful update
         await store.refreshCycle()
         // Dispatch event to trigger all other listeners (usePrediction, useLogs, etc.)
-        console.error('[useCycleData] Dispatching menomap:logs-updated event')
         window.dispatchEvent(new CustomEvent('menomap:logs-updated'))
       } catch (error) {
         console.error('[useCycleData] Failed to update cycle data:', error)

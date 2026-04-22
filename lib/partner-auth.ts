@@ -18,6 +18,13 @@ export interface PartnerRefreshPayload {
   exp?: number
 }
 
+export interface PartnerTokenPair {
+  accessToken: string
+  refreshToken: string
+  accessTokenExpiresAt: Date
+  refreshTokenExpiresAt: Date
+}
+
 const PARTNER_JWT_SECRET =
   process.env.PARTNER_JWT_SECRET || process.env.JWT_SECRET || 'your-secret-key'
 const PARTNER_JWT_REFRESH_SECRET =
@@ -51,9 +58,19 @@ export function generatePartnerRefreshToken(partnerId: string) {
 }
 
 export function generatePartnerTokenPair(partnerId: string, email: string) {
+  const accessToken = generatePartnerAccessToken(partnerId, email)
+  const refreshToken = generatePartnerRefreshToken(partnerId)
+  const accessPayload = jwt.decode(accessToken) as { exp?: number } | null
+  const refreshPayload = jwt.decode(refreshToken) as { exp?: number } | null
+
+  const defaultAccessExpiry = new Date(Date.now() + 60 * 60 * 1000)
+  const defaultRefreshExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+
   return {
-    accessToken: generatePartnerAccessToken(partnerId, email),
-    refreshToken: generatePartnerRefreshToken(partnerId),
+    accessToken,
+    refreshToken,
+    accessTokenExpiresAt: accessPayload?.exp ? new Date(accessPayload.exp * 1000) : defaultAccessExpiry,
+    refreshTokenExpiresAt: refreshPayload?.exp ? new Date(refreshPayload.exp * 1000) : defaultRefreshExpiry,
   }
 }
 

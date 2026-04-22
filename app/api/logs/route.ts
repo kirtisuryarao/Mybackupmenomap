@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import { createInternalErrorResponse } from '@/lib/api-error'
 import { recomputeCycleForUser, validateFlowEntryLength } from '@/lib/cycle-recalculation'
+import { formatLocalDate } from '@/lib/date'
 import { buildHybridPredictionForUser } from '@/lib/hybrid-prediction'
 import { isMenopauseMode, normalizeSymptoms } from '@/lib/menopause'
 import { authenticateRequest } from '@/lib/middleware'
@@ -20,6 +21,22 @@ const dailyLogSchema = z.object({
   notes: z.string().max(500).nullable().optional(),
   isPeriodStart: z.boolean().optional().default(false),
 })
+
+function isHealthLogStorageMissingError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') {
+    return false
+  }
+
+  const prismaError = error as { code?: string; message?: string }
+  const code = prismaError.code
+  const message = typeof prismaError.message === 'string' ? prismaError.message.toLowerCase() : ''
+
+  if (code === 'P2021' || code === 'P2022') {
+    return message.includes('healthlog') || message.includes('health_logs') || message.includes('health log')
+  }
+
+  return false
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -41,18 +58,33 @@ export async function GET(request: NextRequest) {
       if (to) (where.date as Record<string, unknown>).lte = new Date(`${to}T00:00:00`)
     }
 
-    const [logs, healthLogs] = await Promise.all([
-      prisma.dailyLog.findMany({
+    const logs = await prisma.dailyLog.findMany({
+      where,
+      orderBy: { date: 'desc' },
+      take: Math.min(limit, 365),
+    })
+
+    let healthLogs: Array<{
+      id: string
+      date: Date
+      symptoms: string[]
+      mood: string | null
+      sleepHours: number | null
+      notes: string | null
+      createdAt: Date
+    }> = []
+
+    try {
+      healthLogs = await prisma.healthLog.findMany({
         where,
         orderBy: { date: 'desc' },
         take: Math.min(limit, 365),
-      }),
-      prisma.healthLog.findMany({
-        where,
-        orderBy: { date: 'desc' },
-        take: Math.min(limit, 365),
-      }),
-    ])
+      })
+    } catch (healthLogError) {
+      if (!isHealthLogStorageMissingError(healthLogError)) {
+        throw healthLogError
+      }
+    }
 
     const merged = new Map<string, {
       id: string
@@ -72,7 +104,7 @@ export async function GET(request: NextRequest) {
     }>()
 
     for (const log of logs) {
-      const date = log.date.toISOString().split('T')[0]
+      const date = formatLocalDate(log.date)
       merged.set(date, {
         id: log.id,
         dailyLogId: log.id,
@@ -92,7 +124,7 @@ export async function GET(request: NextRequest) {
     }
 
     for (const healthLog of healthLogs) {
-      const date = healthLog.date.toISOString().split('T')[0]
+      const date = formatLocalDate(healthLog.date)
       const existing = merged.get(date)
       const symptoms = normalizeSymptoms(healthLog.symptoms)
       const notes = healthLog.notes || existing?.notes || null
@@ -184,7 +216,11 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      await tx.healthLog.upsert({
+      return [userProfile, dailyLog] as const
+    })
+
+    try {
+      await prisma.healthLog.upsert({
         where: {
           userId_date: {
             userId: user.userId,
@@ -206,9 +242,17 @@ export async function POST(request: NextRequest) {
           notes: data.notes || null,
         },
       })
+    } catch (healthLogError) {
+      if (!isHealthLogStorageMissingError(healthLogError)) {
+        throw healthLogError
+      }
+    }
 
-      return [userProfile, dailyLog] as const
-    })
+    if (normalizedFlow && profile?.menopauseStage === 'menopause') {
+      warning = warning
+        ? `${warning} Bleeding after menopause is not typical and should be reviewed by a clinician, especially if you had already gone 12 months without a period.`
+        : 'Bleeding after menopause is not typical and should be reviewed by a clinician, especially if you had already gone 12 months without a period.'
+    }
 
     const recalc = await recomputeCycleForUser(user.userId, { persist: true })
 
@@ -250,7 +294,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         id: log.id,
-        date: log.date.toISOString().split('T')[0],
+        date: formatLocalDate(log.date),
         flow: log.flow,
         spotting: log.spotting,
         mood: log.mood,
@@ -326,10 +370,15 @@ export async function DELETE(request: NextRequest) {
       select: { menopauseStage: true },
     })
 
-    await prisma.$transaction([
-      prisma.dailyLog.deleteMany({ where: { userId: user.userId, date } }),
-      prisma.healthLog.deleteMany({ where: { userId: user.userId, date } }),
-    ])
+    await prisma.dailyLog.deleteMany({ where: { userId: user.userId, date } })
+
+    try {
+      await prisma.healthLog.deleteMany({ where: { userId: user.userId, date } })
+    } catch (healthLogError) {
+      if (!isHealthLogStorageMissingError(healthLogError)) {
+        throw healthLogError
+      }
+    }
 
     const recalc = await recomputeCycleForUser(user.userId, { persist: true })
 

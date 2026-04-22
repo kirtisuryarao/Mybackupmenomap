@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { partnerAuthenticatedFetch } from '@/lib/partner-auth-client'
 
 import type { PartnerInsights } from '@/lib/services/partner-insights'
 
@@ -72,17 +73,13 @@ export default function PartnerDashboard() {
   const fetchPartnerData = async (isRefresh = false) => {
     try {
       if (isRefresh) setRefreshing(true)
-      const token = localStorage.getItem('partnerAccessToken')
-      if (!token) {
+      const hasPartnerSession = Boolean(localStorage.getItem('partnerAccessToken') || localStorage.getItem('partnerRefreshToken'))
+      if (!hasPartnerSession) {
         window.location.href = '/partner/login'
         return
       }
 
-      const response = await fetch('/api/partner/data', {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      })
+      const response = await partnerAuthenticatedFetch('/api/partner/data')
 
       if (!response.ok) {
         if (response.status === 401) {
@@ -149,8 +146,8 @@ export default function PartnerDashboard() {
   const askAssistant = async (question: string) => {
     if (!question.trim()) return
 
-    const token = localStorage.getItem('partnerAccessToken')
-    if (!token) {
+    const hasPartnerSession = Boolean(localStorage.getItem('partnerAccessToken') || localStorage.getItem('partnerRefreshToken'))
+    if (!hasPartnerSession) {
       window.location.href = '/partner/login'
       return
     }
@@ -161,11 +158,10 @@ export default function PartnerDashboard() {
     setAssistantLoading(true)
 
     try {
-      const response = await fetch('/api/partner/chat', {
+      const response = await partnerAuthenticatedFetch('/api/partner/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({ message: question }),
       })

@@ -10,6 +10,7 @@ import { useCycleData } from '@/hooks/use-cycle-data'
 import { useLogs } from '@/hooks/use-logs'
 import { useProfileData } from '@/hooks/use-profile-data'
 import { getMonthCycleDays, CyclePhase } from '@/lib/cycle-calculations'
+import { formatLocalDate } from '@/lib/date'
 import { isMenopauseMode } from '@/lib/menopause'
 
 const DAYS_OF_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -151,15 +152,26 @@ export function CycleCalendar({ onRefresh }: CycleCalendarProps) {
             {monthDays.map((dayInfo, idx) => {
               const isToday =
                 dayInfo.date.toDateString() === new Date().toDateString()
-              const isoDate = dayInfo.date.toISOString().split('T')[0]
+              const isoDate = formatLocalDate(dayInfo.date)
               const log = logByDate.get(isoDate)
               const hasPeriod = Boolean(log?.flow)
-              const hasSymptoms = Boolean(log?.symptoms.length || log?.moodText || log?.sleepHours)
+              const hasHealthEntry = Boolean(
+                log && (
+                  log.symptoms.length
+                  || log.mood.length
+                  || log.moodText
+                  || log.sleepHours
+                  || log.sleepQuality
+                  || log.temperature
+                  || log.notes
+                  || log.spotting
+                )
+              )
               const phaseColor = hasCycleCalendar
                 ? PHASE_COLORS[dayInfo.phase]
                 : hasPeriod
                   ? 'bg-rose-100 hover:bg-rose-200 text-rose-900'
-                  : hasSymptoms
+                  : hasHealthEntry
                     ? 'bg-teal-50 hover:bg-teal-100 text-teal-900'
                     : 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-100'
 
@@ -179,7 +191,7 @@ export function CycleCalendar({ onRefresh }: CycleCalendarProps) {
                     <span className="text-xs">D{dayInfo.dayOfCycle}</span>
                   ) : hasPeriod ? (
                     <span className="text-[10px] font-semibold">Period</span>
-                  ) : hasSymptoms ? (
+                  ) : hasHealthEntry ? (
                     <span className="text-[10px] font-semibold">Log</span>
                   ) : null}
                 </button>
