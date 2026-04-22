@@ -74,7 +74,7 @@ export async function loginPartner(email: string, password: string): Promise<Ser
         expiresAt: tokens.refreshTokenExpiresAt,
       },
     })
-    await prisma.partnerRefreshToken.deleteMany({ where: { OR: [{ expiresAt: { lt: new Date() } }, { revoked: true }] } })
+    await prisma.partnerRefreshToken.deleteMany({ where: { expiresAt: { lt: new Date() } } })
 
     return { success: true, data: { partner: toSafePartner(partner), tokens } }
   } catch (dbError) {
@@ -125,19 +125,19 @@ export async function refreshPartnerSession(refreshToken: string): Promise<Servi
       include: { partner: true },
     })
 
-    if (!stored || stored.revoked || stored.expiresAt < new Date()) {
+    if (!stored || stored.expiresAt < new Date()) {
       return { success: false, status: 401, error: 'Invalid or expired refresh token' }
     }
 
     if (!stored.partner || stored.partner.id !== payload.partnerId) {
-      await prisma.partnerRefreshToken.updateMany({ where: { tokenHash }, data: { revoked: true } })
+      await prisma.partnerRefreshToken.deleteMany({ where: { tokenHash } })
       return { success: false, status: 401, error: 'Partner not found' }
     }
 
     const tokens = generatePartnerTokenPair(stored.partner.id, stored.partner.email)
 
     await prisma.$transaction([
-      prisma.partnerRefreshToken.update({ where: { id: stored.id }, data: { revoked: true } }),
+      prisma.partnerRefreshToken.delete({ where: { id: stored.id } }),
       prisma.partnerRefreshToken.create({
         data: {
           partnerId: stored.partner.id,
@@ -192,20 +192,16 @@ export async function refreshPartnerSession(refreshToken: string): Promise<Servi
 }
 
 export async function logoutPartner(partnerId: string, refreshToken?: string | null): Promise<void> {
-  const tokenHash = refreshToken ? hashRefreshToken(refreshToken) : null
-
   try {
-    await prisma.partnerRefreshToken.updateMany({
+    await prisma.partnerRefreshToken.deleteMany({
       where: {
         partnerId,
-        revoked: false,
-        ...(tokenHash ? { tokenHash } : {}),
+        ...(refreshToken ? { tokenHash: hashRefreshToken(refreshToken) } : {}),
       },
-      data: { revoked: true },
     })
   } catch (dbError) {
     if (isPrismaConnectionError(dbError) && canUseFileAuthFallback()) {
-      await revokeFilePartnerRefreshTokens(partnerId, tokenHash)
+      await revokeFilePartnerRefreshTokens(partnerId, refreshToken ? hashRefreshToken(refreshToken) : null)
       return
     }
     throw dbError

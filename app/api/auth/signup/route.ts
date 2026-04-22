@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import { createInternalErrorResponse } from '@/lib/api-error'
 import { hashPassword, generateTokenPair } from '@/lib/auth'
+import { hashRefreshToken } from '@/lib/auth/jwt'
 import { canUseFileAuthFallback, isPrismaConnectionError } from '@/lib/db-fallback'
 import {
   createFileRefreshToken,
@@ -10,6 +11,26 @@ import {
   findFileUserByEmail,
 } from '@/lib/file-auth-store'
 import { prisma } from '@/lib/prisma'
+
+const isProduction = process.env.NODE_ENV === 'production'
+
+function attachAuthCookies(response: NextResponse, accessToken: string, refreshToken: string) {
+  response.cookies.set('access_token', accessToken, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'strict',
+    path: '/',
+    maxAge: 15 * 60,
+  })
+
+  response.cookies.set('refresh_token', refreshToken, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'strict',
+    path: '/api/auth',
+    maxAge: 7 * 24 * 60 * 60,
+  })
+}
 
 
 const signupSchema = z.object({
@@ -30,6 +51,8 @@ export async function POST(request: NextRequest) {
     // Validate input
     const validatedData = signupSchema.parse({
       ...body,
+      name: typeof body?.name === 'string' ? body.name.trim() : body?.name,
+      email: typeof body?.email === 'string' ? body.email.trim().toLowerCase() : body?.email,
       age: parseInt(body.age),
       cycleLength: parseInt(body.cycleLength),
       periodLength: parseInt(body.periodLength),
@@ -46,6 +69,16 @@ export async function POST(request: NextRequest) {
           { error: 'User with this email already exists' },
           { status: 400 }
         )
+      }
+
+      if (canUseFileAuthFallback()) {
+        const existingFileUser = await findFileUserByEmail(validatedData.email)
+        if (existingFileUser) {
+          return NextResponse.json(
+            { error: 'User with this email already exists' },
+            { status: 400 }
+          )
+        }
       }
 
       // Hash password
@@ -103,12 +136,12 @@ export async function POST(request: NextRequest) {
       await prisma.refreshToken.create({
         data: {
           userId: result.id,
-          token: tokens.refreshToken,
+          tokenHash: hashRefreshToken(tokens.refreshToken),
           expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         },
       })
 
-      return NextResponse.json(
+      const response = NextResponse.json(
         {
           user: {
             id: result.id,
@@ -116,13 +149,16 @@ export async function POST(request: NextRequest) {
             name: result.name,
             age: result.age,
             cycleLength: result.cycleLength,
-            periodLength: result.periodLength,
+            periodLength: result.periodDuration,
             menopauseStage: result.menopauseStage,
           },
           ...tokens,
         },
         { status: 201 }
       )
+
+      attachAuthCookies(response, tokens.accessToken, tokens.refreshToken)
+      return response
     } catch (error) {
       if (isPrismaConnectionError(error) && canUseFileAuthFallback()) {
         const existingUser = await findFileUserByEmail(validatedData.email)
@@ -157,7 +193,7 @@ export async function POST(request: NextRequest) {
           expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         })
 
-        return NextResponse.json(
+        const response = NextResponse.json(
           {
             user: {
               id: result.id,
@@ -172,6 +208,9 @@ export async function POST(request: NextRequest) {
           },
           { status: 201 }
         )
+
+        attachAuthCookies(response, tokens.accessToken, tokens.refreshToken)
+        return response
       }
 
       throw error

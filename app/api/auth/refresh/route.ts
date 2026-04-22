@@ -3,6 +3,7 @@ import { z } from 'zod'
 
 import { createInternalErrorResponse } from '@/lib/api-error'
 import { verifyRefreshToken, generateTokenPair } from '@/lib/auth'
+import { hashRefreshToken } from '@/lib/auth/jwt'
 import { canUseFileAuthFallback, isPrismaConnectionError } from '@/lib/db-fallback'
 import {
   createFileRefreshToken,
@@ -11,6 +12,26 @@ import {
 } from '@/lib/file-auth-store'
 import { prisma } from '@/lib/prisma'
 
+const isProduction = process.env.NODE_ENV === 'production'
+
+function attachAuthCookies(response: NextResponse, accessToken: string, refreshToken: string) {
+  response.cookies.set('access_token', accessToken, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'strict',
+    path: '/',
+    maxAge: 15 * 60,
+  })
+
+  response.cookies.set('refresh_token', refreshToken, {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'strict',
+    path: '/api/auth',
+    maxAge: 7 * 24 * 60 * 60,
+  })
+}
+
 
 const refreshSchema = z.object({
   refreshToken: z.string().min(1, 'Refresh token is required'),
@@ -18,10 +39,13 @@ const refreshSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
+    const body = await request.json().catch(() => ({}))
+    const refreshTokenFromCookie = request.cookies.get('refresh_token')?.value
+    const refreshToken = typeof body?.refreshToken === 'string' ? body.refreshToken : refreshTokenFromCookie
     
     // Validate input
-    const validatedData = refreshSchema.parse(body)
+    const validatedData = refreshSchema.parse({ refreshToken })
+    const tokenHash = hashRefreshToken(validatedData.refreshToken)
 
     // Verify refresh token
     try {
@@ -36,7 +60,7 @@ export async function POST(request: NextRequest) {
     try {
       // Check if refresh token exists in database
       const storedToken = await prisma.refreshToken.findUnique({
-        where: { token: validatedData.refreshToken },
+        where: { tokenHash },
         include: { user: true },
       })
 
@@ -79,12 +103,14 @@ export async function POST(request: NextRequest) {
       await prisma.refreshToken.create({
         data: {
           userId: storedToken.user.id,
-          token: tokens.refreshToken,
+          tokenHash: hashRefreshToken(tokens.refreshToken),
           expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         },
       })
 
-      return NextResponse.json(tokens)
+      const response = NextResponse.json(tokens)
+      attachAuthCookies(response, tokens.accessToken, tokens.refreshToken)
+      return response
     } catch (error) {
       if (isPrismaConnectionError(error) && canUseFileAuthFallback()) {
         const storedToken = await findFileRefreshToken(validatedData.refreshToken)
@@ -120,7 +146,9 @@ export async function POST(request: NextRequest) {
           expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
         })
 
-        return NextResponse.json(tokens)
+        const response = NextResponse.json(tokens)
+        attachAuthCookies(response, tokens.accessToken, tokens.refreshToken)
+        return response
       }
 
       throw error
